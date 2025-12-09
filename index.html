@@ -228,10 +228,9 @@
 
     createApp({
         setup() {
-            // 🚨 請在這裡填入您的 Google Apps Script 網址 🚨
+            // 🚨 請確認此處為您的 GAS 網址 (V3.1)
             const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
 
-            // 狀態變數
             const loading = ref(true);
             const errorMsg = ref('');
             const rawData = ref([]);
@@ -253,29 +252,48 @@
             const calcWeight = ref('');
             const calcReps = ref('');
 
-            // --- 核心邏輯：數據獲取 (V3.0 自動帶入 type=json) ---
+            // --- 核心邏輯：數據獲取與轉接 ---
             const fetchData = async () => {
                 loading.value = true;
                 errorMsg.value = '';
                 try {
-                    // 自動加上 ?type=json 參數
+                    // 強制加入 type=json 參數
                     const targetUrl = API_URL + (API_URL.includes('?') ? '&' : '?') + 'type=json';
                     
                     const res = await fetch(targetUrl);
-                    // 如果後端有正確設定 MimeType.TEXT，這裡一樣可以解 json
                     const json = await res.json(); 
 
                     if (json.status === 'error') {
                         throw new Error(json.message);
                     }
 
-                    if (json.data) rawData.value = json.data;
+                    // 🛠️ 關鍵修正：將後端的小寫欄位 (date) 轉換為前端的大寫欄位 (Date)
+                    // 這樣就不用改 HTML 的 {{ item.Exercise }}
+                    if (json.data) {
+                        rawData.value = json.data.map(row => ({
+                            Date: row.date,        // 轉接: date -> Date
+                            UserId: row.userId,
+                            Exercise: row.exercise,// 轉接: exercise -> Exercise
+                            Weight: row.weight,
+                            Reps: row.reps,
+                            Sets: row.sets,
+                            OneRm: row.oneRm,
+                            Video_Link: row.videoLink,
+                            Note: row.note,
+                            // 預留欄位
+                            BodyPart: '', 
+                            Category: ''
+                        }));
+                    }
+
                     if (json.mapping) mapping.value = json.mapping;
 
-                    // 合併 Mapping 資訊
+                    // 合併 Mapping 資訊 (補上部位與備註)
                     rawData.value.forEach(item => {
+                        // 注意：mapping 的 key 是動作名稱，這裡要用 item.Exercise
                         const mapInfo = mapping.value[item.Exercise] || {};
                         item.BodyPart = mapInfo.bodyPart || '未分類';
+                        // 如果原本沒備註，但 Mapping 有，就補上去
                         if (!item.Note && mapInfo.note) item.Note = mapInfo.note; 
                     });
 
@@ -287,7 +305,7 @@
                 }
             };
 
-            // --- 計算屬性 ---
+            // --- 計算屬性 (防呆保護版) ---
             const uniqueCategories = computed(() => {
                 const cats = new Set(rawData.value.map(i => i.BodyPart).filter(Boolean));
                 return Array.from(cats).sort();
@@ -295,32 +313,46 @@
 
             const filteredList = computed(() => {
                 let list = rawData.value;
+                // 防呆：確保 list 是陣列
+                if (!Array.isArray(list)) return [];
+
                 if (selectedCategory.value) {
                     list = list.filter(i => i.BodyPart === selectedCategory.value);
                 }
                 if (searchQuery.value) {
                     const q = searchQuery.value.toLowerCase();
                     list = list.filter(i => 
-                        (i.Exercise && i.Exercise.toLowerCase().includes(q)) ||
-                        (i.Note && i.Note.toLowerCase().includes(q))
+                        (i.Exercise && String(i.Exercise).toLowerCase().includes(q)) ||
+                        (i.Note && String(i.Note).toLowerCase().includes(q))
                     );
                 }
+                // 日期排序
                 return list.sort((a, b) => new Date(b.Date) - new Date(a.Date));
             });
 
             const stats = computed(() => {
                 if (filteredList.value.length === 0) return { totalVolume: 0, totalSets: 0, lastDate: '-', daysSince: 0, weeklyFreq: 0 };
                 const list = filteredList.value;
+                
+                // 計算總量
                 const totalVolume = list.reduce((acc, cur) => acc + (parseFloat(cur.Weight||0) * parseFloat(cur.Reps||0) * parseFloat(cur.Sets||0)), 0);
                 const totalSets = list.reduce((acc, cur) => acc + parseFloat(cur.Sets||0), 0);
                 
-                const lastDateObj = new Date(list[0].Date);
+                // 日期計算 (加入防呆，避免 split 報錯)
+                const lastItem = list[0];
+                const lastDateStr = lastItem && lastItem.Date ? lastItem.Date : new Date().toISOString();
+                const lastDateObj = new Date(lastDateStr);
+                
                 const daysSince = Math.floor((new Date() - lastDateObj) / (1000 * 60 * 60 * 24));
 
-                // 簡單週頻率估算
-                const firstDate = new Date(list[list.length-1].Date);
-                const weeks = Math.max(1, (new Date() - firstDate) / (1000 * 60 * 60 * 24 * 7));
-                const uniqueDays = new Set(list.map(i => i.Date.split('T')[0]));
+                // 週頻率
+                const firstItem = list[list.length-1];
+                const firstDateStr = firstItem && firstItem.Date ? firstItem.Date : new Date().toISOString();
+                const weeks = Math.max(1, (new Date() - new Date(firstDateStr)) / (1000 * 60 * 60 * 24 * 7));
+                
+                // 安全切割日期字串
+                const uniqueDays = new Set(list.map(i => (i.Date ? i.Date.split('T')[0] : '')));
+                uniqueDays.delete(''); // 移除無效日期
                 
                 return {
                     totalVolume: Math.round(totalVolume / 1000) + 'k',
@@ -344,10 +376,12 @@
                 if (!ctx) return;
                 if (chartInstance) chartInstance.destroy();
 
-                // 資料整理
                 const dateMap = {};
+                // 反轉列表 (舊 -> 新)
                 [...filteredList.value].reverse().forEach(item => {
+                    if (!item.Date) return;
                     const d = item.Date.split('T')[0];
+                    
                     if (!dateMap[d]) dateMap[d] = { vol: 0, maxW: 0, exercises: [] };
                     
                     const vol = (parseFloat(item.Weight)||0) * (parseFloat(item.Reps)||0) * (parseFloat(item.Sets)||0);
@@ -382,17 +416,11 @@
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        interaction: {
-                            mode: 'index',      // V2.1 優化：手指不用點很準也能觸發
-                            intersect: false,
-                        },
+                        interaction: { mode: 'index', intersect: false },
                         plugins: {
                             legend: { labels: { color: '#A6ADBB' } },
                             tooltip: {
                                 backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                                titleFont: { size: 14 },
-                                bodyFont: { size: 14 },
-                                padding: 10,
                                 callbacks: {
                                     afterLabel: function(context) {
                                         const date = labels[context.dataIndex];
@@ -410,13 +438,13 @@
                 });
             };
 
-            // --- 監聽器與生命週期 ---
+            // --- 監聽器 ---
             watch(loading, (newVal) => { if (!newVal) nextTick(initCharts); });
             watch([currentView, selectedCategory, chartMode, searchQuery], () => { 
                 if (currentView.value === 'dashboard') nextTick(initCharts); 
             });
 
-            // 編輯功能 (暫存前端)
+            // 編輯功能
             const openEditModal = (item) => {
                 editingItem.value = {
                     exercise: item.Exercise,
@@ -428,7 +456,7 @@
 
             const saveCategory = async () => {
                 saving.value = true;
-                // 這裡模擬更新成功，實際需要 POST 到後端
+                // 更新前端顯示
                 const item = rawData.value.find(i => i.Exercise === editingItem.value.exercise);
                 if (item) item.BodyPart = editingItem.value.newBodyPart;
                 
@@ -436,6 +464,7 @@
                 if (!mapping.value[editingItem.value.exercise]) mapping.value[editingItem.value.exercise] = {};
                 mapping.value[editingItem.value.exercise].bodyPart = editingItem.value.newBodyPart;
 
+                // 實際專案應在此處發送 POST 更新到 GAS
                 setTimeout(() => {
                     saving.value = false;
                     showModal.value = false;
@@ -457,5 +486,6 @@
         }
     }).mount('#app');
 </script>
+
 </body>
 </html>
