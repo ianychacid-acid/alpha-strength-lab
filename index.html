@@ -425,7 +425,7 @@ createApp({
                 data: {
                     labels: Object.keys(dataMap),
                     datasets: [{
-                        // 修正點：這裡原本是用 , 錯誤，現在改為 : 正確
+                        // 修正點：這裡原本是用 , 錯誤，現在改為 : 正確  
                         label: chartMode.value === 'max' ? '最大重量 (kg)' : '訓練總量 (vol)',
                         data: Object.values(dataMap),
                         borderColor: color,
