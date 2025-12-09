@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Console v2.1.7</title>
+    <title>Alpha Strength Console v2.1.8</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💪</text></svg>">
 
@@ -21,7 +21,8 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        /* 確保 Chart 容器有明確高度，避免 Chart.js 算錯 */
+        
+        /* 確保容器高度明確 */
         .chart-container { position: relative; height: 300px; width: 100%; min-width: 0; }
         .radar-container { position: relative; height: 350px; width: 100%; min-width: 0; }
         
@@ -184,7 +185,6 @@
 </div>
 
 <script>
-// 🚨 Fix: 引入 shallowRef 和 markRaw 避免 Proxy 衝突
 const { createApp, ref, shallowRef, markRaw, computed, onMounted, watch, nextTick } = Vue;
 
 createApp({
@@ -202,11 +202,11 @@ createApp({
         const calcWeight = ref(null);
         const calcReps = ref(null);
         
-        // 🚨 Fix: 使用 shallowRef 來存放 Chart 實例，避免 Vue 深度監聽導致崩潰
+        // 核心修正：使用 shallowRef
         const chartInstance = shallowRef(null);
         const radarInstance = shallowRef(null);
 
-        // ⚠️ API URL (確保是 Exec URL)
+        // ⚠️ API URL
         const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
 
         const viewName = computed(() => {
@@ -225,14 +225,12 @@ createApp({
             return ['全部', ...Array.from(cats).sort()];
         });
 
-        // 數據清洗
         const processedList = computed(() => {
             if (!rawData.value || !Array.isArray(rawData.value)) return [];
             return rawData.value.map(log => {
                 const exName = log.exercise || 'Unknown'; 
                 const mapInfo = mapping.value[exName] || {};
                 
-                // 強制轉型：確保數字運算正確
                 const cleanNum = (val) => {
                     if (typeof val === 'number') return val;
                     if (!val) return 0;
@@ -242,7 +240,6 @@ createApp({
                 const w = cleanNum(log.weight);
                 const r = cleanNum(log.reps);
                 const s = cleanNum(log.sets);
-                
                 let vol = w * r * s; 
 
                 return {
@@ -288,27 +285,17 @@ createApp({
             };
         });
 
-        // 手動切換圖表模式的函式
         const setChartMode = (mode) => {
             chartMode.value = mode;
-            // 不需要手動 destroy，watch 會觸發 initCharts
         };
 
         const initCharts = () => {
             const ctxLine = document.getElementById('trainingChart');
             const ctxRadar = document.getElementById('radarChart');
 
-            // 銷毀舊圖表 (如果存在)
-            if (chartInstance.value) {
-                chartInstance.value.destroy();
-                chartInstance.value = null;
-            }
-            if (radarInstance.value) {
-                radarInstance.value.destroy();
-                radarInstance.value = null;
-            }
+            if (chartInstance.value) { chartInstance.value.destroy(); chartInstance.value = null; }
+            if (radarInstance.value) { radarInstance.value.destroy(); radarInstance.value = null; }
 
-            // 如果 DOM 不存在或沒資料，則不繪圖
             if (!ctxLine || !ctxRadar || filteredList.value.length === 0) return;
 
             // Line Chart
@@ -316,7 +303,6 @@ createApp({
             [...filteredList.value].reverse().forEach(log => {
                 const dStr = log.Date; 
                 if (!dataMap[dStr]) dataMap[dStr] = { vol: 0, max1rm: 0 };
-                
                 if (chartMode.value === 'volume') {
                     if(!isNaN(log.Vol)) dataMap[dStr].vol += log.Vol;
                 } else {
@@ -327,7 +313,7 @@ createApp({
             const labels = Object.keys(dataMap);
             const vals = labels.map(k => chartMode.value === 'volume' ? dataMap[k].vol : dataMap[k].max1rm);
             
-            // 🚨 Fix: 使用 markRaw 包裹 Chart 實例，告訴 Vue 不要代理它
+            // 使用 markRaw
             chartInstance.value = markRaw(new Chart(ctxLine, { 
                  type: 'line',
                  data: { labels: labels, datasets: [{ label: '數值', data: vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }] },
@@ -354,7 +340,7 @@ createApp({
         };
 
         const fetchData = async () => {
-            loading.value = true;
+            // loading.value = true; // ⚠️ 注意：V2.1.8 調整為在初始 ref 定義時就為 true
             try {
                 if(API_URL.includes('...')) throw new Error("API_URL 未填入。");
                 const res = await fetch(API_URL + "?type=json");
@@ -364,17 +350,16 @@ createApp({
                 if(json.logs && Array.isArray(json.logs)) rawData.value = json.logs; 
                 if(json.mapping) mapping.value = json.mapping;
                 
-                // 確保 DOM 渲染完畢後再畫圖
-                nextTick(() => initCharts());
+                // ⚠️ 不要在這裡呼叫 initCharts()，交給 watch(loading)
             } catch (e) {
                 console.error("載入失敗:", e.message);
                 alert(`資料載入失敗：${e.message}`);
             } finally {
-                loading.value = false;
+                loading.value = false; // 這會觸發下方的 watch
             }
         };
 
-        const saveCategory = async () => { 
+        const saveCategory = async () => { /* ... 與前版相同 ... */ 
             saving.value = true;
             try {
                 await fetch(API_URL, {
@@ -401,8 +386,7 @@ createApp({
                 saving.value = false;
             }
         };
-        
-        const openEditModal = (item) => { 
+        const openEditModal = (item) => { /* ... 與前版相同 ... */ 
              editingItem.value = { 
                 exercise: item.Exercise, 
                 newCategory: item.Category || '', 
@@ -412,8 +396,16 @@ createApp({
              showModal.value = true;
         };
 
-        // 監聽變化重繪圖表
+        // 🚨 核心修正：監控 loading 狀態，一變成 false 就畫圖
+        watch(loading, (newVal) => {
+            if (!newVal) {
+                nextTick(() => initCharts());
+            }
+        });
+
+        // 監控其他變數
         watch([currentView, selectedCategory, chartMode], () => nextTick(() => initCharts()));
+        
         onMounted(() => fetchData());
 
         return {
