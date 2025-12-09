@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Lab v2.1 | Director's Console</title>
+    <title>Alpha Strength Lab v2.1.1 | Director's Console</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -25,15 +25,31 @@
 
         /* Chart 容器優化 */
         .chart-container { position: relative; height: 300px; width: 100%; }
+        /* 雷達圖專用高度 */
+        .radar-container { position: relative; height: 350px; width: 100%; }
 
         /* 1RM 計算機專用樣式 */
         .input-group { @apply flex flex-col gap-2; }
-        .stat-card { @apply bg-slate-800 p-4 rounded-xl border border-slate-700; }
+        
+        /* PC 版優化：當螢幕夠寬時 */
+        @media (min-width: 1024px) {
+            .dashboard-grid {
+                display: grid;
+                grid-template-columns: 350px 1fr;
+                gap: 24px;
+                align-items: start;
+            }
+            .charts-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 24px;
+            }
+        }
     </style>
 </head>
 <body class="text-slate-200 min-h-screen pb-20">
 
-<div id="app" class="max-w-md mx-auto relative min-h-screen bg-slate-900 shadow-2xl overflow-hidden">
+<div id="app" class="max-w-7xl mx-auto relative min-h-screen bg-slate-900 shadow-2xl overflow-hidden">
 
     <nav class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50 px-4 py-3 flex justify-between items-center">
         <div class="flex items-center gap-2">
@@ -58,60 +74,65 @@
             
             <div v-show="currentView === 'dashboard'" class="space-y-6">
                 
-                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-lg">
-                    <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Volume</h2>
-                    <div class="flex items-end gap-3">
-                        <span class="text-4xl font-black text-white font-mono">{{ stats.totalVolume.toLocaleString() }}</span>
-                        <span class="text-emerald-500 text-sm font-bold mb-1.5">kg</span>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-lg">
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Volume</h2>
+                        <div class="flex items-end gap-3">
+                            <span class="text-4xl font-black text-white font-mono">{{ stats.totalVolume.toLocaleString() }}</span>
+                            <span class="text-emerald-500 text-sm font-bold mb-1.5">kg</span>
+                        </div>
                     </div>
-                    <div class="mt-4 flex gap-4 text-sm">
-                        <div>
-                            <span class="block text-slate-500 text-xs">訓練次數</span>
-                            <span class="font-bold text-white">{{ stats.totalWorkouts }} 次</span>
-                        </div>
-                        <div>
-                            <span class="block text-slate-500 text-xs">最近訓練</span>
-                            <span class="font-bold text-white">{{ stats.lastWorkout }}</span>
-                        </div>
+                    <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Workouts</h2>
+                        <div class="text-3xl font-black text-white font-mono">{{ stats.totalWorkouts }} <span class="text-sm text-slate-500 font-normal">Sessions</span></div>
+                        <div class="text-xs text-slate-500 mt-2">Last: {{ stats.lastWorkout }}</div>
+                    </div>
+                    <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg flex flex-col justify-center gap-2">
+                         <input v-model="searchQuery" class="input input-sm input-bordered w-full bg-slate-900 border-slate-600 focus:border-emerald-500 text-white" placeholder="搜尋動作 (如: 深蹲)..." />
+                         <select v-model="selectedCategory" class="select select-sm select-bordered w-full bg-slate-900 text-white">
+                            <option v-for="cat in uniqueCategories" :value="cat">{{ cat }}</option>
+                         </select>
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-3">
-                    <div class="join w-full">
-                        <input v-model="searchQuery" class="input input-bordered input-sm join-item w-full bg-slate-800 border-slate-600 focus:border-emerald-500 text-white" placeholder="搜尋動作 (如: 深蹲)..." />
-                    </div>
-                    
-                    <div class="tabs tabs-boxed bg-slate-800 p-1">
-                        <a v-for="cat in uniqueCategories" 
-                           :class="{'tab-active bg-emerald-600 text-white': selectedCategory === cat}"
-                           @click="selectedCategory = cat"
-                           class="tab tab-sm flex-1 text-xs transition-all duration-300">{{ cat }}</a>
-                    </div>
-                </div>
-
-                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-white flex items-center gap-2">
-                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                            訓練趨勢
-                        </h3>
-                        <div class="btn-group">
-                            <button @click="chartMode = 'volume'" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
-                            <button @click="chartMode = '1rm'" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
+                <div class="charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-white flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                                Volume History
+                            </h3>
+                            <div class="btn-group">
+                                <button @click="chartMode = 'volume'" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
+                                <button @click="chartMode = '1rm'" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="trainingChart"></canvas>
                         </div>
                     </div>
-                    <div class="chart-container">
-                        <canvas id="trainingChart"></canvas>
+
+                    <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
+                         <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-white flex items-center gap-2">
+                                <span class="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+                                Body Part Focus
+                            </h3>
+                        </div>
+                        <div class="radar-container flex justify-center">
+                            <canvas id="radarChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div v-show="currentView === 'list'" class="space-y-4">
+            <div v-show="currentView === 'list'" class="space-y-4 max-w-4xl mx-auto">
                 <div v-for="(log, index) in filteredList" :key="index" class="group bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-emerald-500/50 transition-all duration-300">
                     <div class="flex justify-between items-start mb-2">
                         <div>
                             <h3 class="font-bold text-white text-lg">{{ log.Exercise }}</h3>
                             <span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded">{{ log.Date }}</span>
+                            <span v-if="log.Category !== '未分類'" class="ml-2 text-xs text-emerald-400 border border-emerald-900 px-2 py-0.5 rounded">{{ log.Category }}</span>
                         </div>
                         <button @click="openEditModal(log)" class="btn btn-ghost btn-xs text-slate-500 group-hover:text-emerald-400">
                             ✎
@@ -121,7 +142,7 @@
                     <div class="grid grid-cols-3 gap-2 mt-3 font-mono text-sm">
                         <div class="bg-slate-900/50 p-2 rounded text-center">
                             <div class="text-xs text-slate-500">Weight</div>
-                            <div class="font-bold text-emerald-400">{{ log.Weight }} <span class="text-[10px]">kg</span></div>
+                            <div class="font-bold text-emerald-400">{{ log.Weight }}</div>
                         </div>
                         <div class="bg-slate-900/50 p-2 rounded text-center">
                             <div class="text-xs text-slate-500">Reps</div>
@@ -141,7 +162,7 @@
                 </div>
             </div>
 
-            <div v-show="currentView === 'tools'" class="space-y-6">
+            <div v-show="currentView === 'tools'" class="max-w-md mx-auto space-y-6">
                 <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
                     <h3 class="text-white font-bold mb-4 flex items-center gap-2">
                         📊 1RM 計算機 (Epley Formula)
@@ -183,9 +204,6 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="mt-4 text-[10px] text-slate-500 text-center">
-                        * 僅供參考，實際強度受當日狀況影響
-                    </div>
                 </div>
             </div>
 
@@ -207,8 +225,7 @@
         </button>
     </div>
 
-
-<dialog class="modal modal-bottom sm:modal-middle" :class="{'modal-open': showModal}">
+    <dialog class="modal modal-bottom sm:modal-middle" :class="{'modal-open': showModal}">
         <div class="modal-box bg-slate-800 border border-slate-600">
             <h3 class="font-bold text-lg text-white mb-4">編輯動作分類</h3>
             <div class="form-control w-full mb-4">
@@ -242,35 +259,37 @@ const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
 createApp({
     setup() {
-        // --- 狀態定義 ---
+        // --- 變數定義 ---
         const loading = ref(true);
         const rawData = ref([]);
-        const mapping = ref({}); // 動作 -> 分類對照表
-        const currentView = ref('dashboard'); // dashboard | list | tools
+        const mapping = ref({}); 
+        const currentView = ref('dashboard'); 
         const searchQuery = ref('');
         const selectedCategory = ref('全部');
-        const chartMode = ref('volume'); // volume | 1rm
+        const chartMode = ref('volume');
+        
+        // 圖表實例
         const chartInstance = ref(null);
+        const radarInstance = ref(null);
 
         // Modal 相關
         const showModal = ref(false);
         const saving = ref(false);
         const editingItem = ref({ exercise: '', newCategory: '', newBodyPart: '', newNote: '' });
 
-        // 1RM 計算機狀態
+        // 1RM 計算機
         const calcWeight = ref(null);
         const calcReps = ref(null);
 
-        // --- GAS API URL ---
-        // 請確認這個 URL 是您部署為 Web App (Exec) 的網址
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
+        // ⚠️ API URL 配置 (請確保這是您 GAS Web App 的最新網址)
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz_d_6YtW8sHq-uO-yC-aFf9Qy_L5W_.../exec'; 
 
-        // --- 1RM 計算邏輯 (Computed) ---
+        // --- 計算邏輯 (Computed) ---
         const calculated1RM = computed(() => {
             if (!calcWeight.value || !calcReps.value) return 0;
-            // Epley Formula: w * (1 + r/30)
+            // Epley Formula
             const oneRM = calcWeight.value * (1 + calcReps.value / 30);
-            return Math.round(oneRM * 10) / 10; // 取小數點一位
+            return Math.round(oneRM * 10) / 10;
         });
 
         const percentages = computed(() => {
@@ -285,7 +304,6 @@ createApp({
         });
 
         function getRepsFromPct(pct) {
-            // 粗略估算對應次數
             if(pct >= 95) return '1-2';
             if(pct >= 90) return '3-4';
             if(pct >= 85) return '5-6';
@@ -294,7 +312,6 @@ createApp({
             return '12+';
         }
 
-        // --- 資料處理邏輯 ---
         const uniqueCategories = computed(() => {
             const cats = new Set(Object.values(mapping.value).map(m => m.category || '未分類'));
             return ['全部', ...Array.from(cats).sort()];
@@ -308,67 +325,68 @@ createApp({
                     Category: mapInfo.category || '未分類',
                     BodyPart: mapInfo.bodyPart || '未知'
                 };
-            });
+            }).filter(log => log.Exercise); // 基本濾空
         });
 
         const filteredList = computed(() => {
             let list = processedList.value;
-            
-            // 搜尋
             if (searchQuery.value) {
                 const q = searchQuery.value.toLowerCase();
-                list = list.filter(item => item.Exercise.toLowerCase().includes(q));
+                list = list.filter(item => item.Exercise && item.Exercise.toLowerCase().includes(q));
             }
-            
-            // 分類篩選
             if (selectedCategory.value !== '全部') {
                 list = list.filter(item => item.Category === selectedCategory.value);
             }
             
-            // 排序：日期新到舊
-            return list.sort((a, b) => new Date(b.Date) - new Date(a.Date));
+            // 日期排序 (防止 Crash)
+            return list.sort((a, b) => {
+                const dateA = new Date(a.Date);
+                const dateB = new Date(b.Date);
+                if (isNaN(dateA)) return 1;
+                if (isNaN(dateB)) return -1;
+                return dateB - dateA;
+            });
         });
 
         const stats = computed(() => {
             const list = processedList.value;
             const totalVol = list.reduce((sum, item) => sum + (parseFloat(item.Vol) || 0), 0);
             
-            // --- Fix: 防止 Invalid time value 錯誤 ---
+            // 🛡️ 關鍵修復：嚴格過濾無效日期
             const validDates = list
                 .map(item => new Date(item.Date))
-                .filter(dateObj => !isNaN(dateObj.getTime())); // 過濾無效日期
+                .filter(d => !isNaN(d.getTime()));
 
             validDates.sort((a,b) => b-a);
             const lastDate = validDates.length > 0 ? validDates[0].toISOString().split('T')[0] : '無紀錄';
-            // ---------------------------------------
 
             return {
                 totalVolume: Math.round(totalVol),
-                totalWorkouts: new Set(list.map(i => i.Date)).size,
+                totalWorkouts: new Set(validDates.map(d => d.toISOString().split('T')[0])).size,
                 lastWorkout: lastDate
             };
         });
 
-        // --- Chart.js 核心 ---
-        const initCharts = () => {
+        // --- 線形圖 (Line Chart) 完整邏輯 ---
+        const initLineChart = () => {
             const ctx = document.getElementById('trainingChart');
             if (!ctx) return;
-
             if (chartInstance.value) chartInstance.value.destroy();
 
-            // 整理圖表數據：依日期分組
             const dataMap = {};
-            // 反轉列表以顯示舊 -> 新
+            // 反轉數據 (舊->新)
             [...filteredList.value].reverse().forEach(log => {
-                if (!dataMap[log.Date]) dataMap[log.Date] = { vol: 0, max1rm: 0, count: 0 };
+                const d = new Date(log.Date);
+                if (isNaN(d.getTime())) return; 
+                
+                const dateStr = d.toISOString().split('T')[0];
+                if (!dataMap[dateStr]) dataMap[dateStr] = { vol: 0, max1rm: 0 };
                 
                 if (chartMode.value === 'volume') {
-                    dataMap[log.Date].vol += (parseFloat(log.Vol) || 0);
+                    dataMap[dateStr].vol += (parseFloat(log.Vol) || 0);
                 } else {
-                    // 1RM 模式：取當日該動作最大 1RM (如果有篩選動作)，否則取平均強度 (較複雜，這裡先簡化為當日最大1RM總和或平均)
-                    // 為了圖表有意義，建議 User 搜尋特定動作時再看 1RM 趨勢
                     const r = parseFloat(log['1RM']) || 0;
-                    if (r > dataMap[log.Date].max1rm) dataMap[log.Date].max1rm = r;
+                    if (r > dataMap[dateStr].max1rm) dataMap[dateStr].max1rm = r;
                 }
             });
 
@@ -380,87 +398,113 @@ createApp({
                 data: {
                     labels: labels,
                     datasets: [{
-                        label: chartMode.value === 'volume' ? '總容量 (kg)' : '最大預估 1RM (kg)',
+                        label: chartMode.value === 'volume' ? '總容量 (kg)' : '最大 1RM (kg)',
                         data: dataPoints,
-                        borderColor: '#10b981', // Emerald 500
+                        borderColor: '#10b981',
                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                         borderWidth: 2,
                         tension: 0.3,
-                        pointRadius: 3, // 稍微加大點
-                        pointHitRadius: 20, // 增加觸摸感應範圍
+                        pointRadius: 3,
+                        pointHitRadius: 20,
                         fill: true
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'nearest', // 🟢 關鍵修正：找最近的點
-                        axis: 'x',       // 🟢 關鍵修正：X 軸對齊即可觸發
-                        intersect: false // 🟢 關鍵修正：不需要精準重疊
-                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
                     scales: {
-                        y: {
-                            grid: { color: '#334155' },
-                            ticks: { color: '#94a3b8' }
-                        },
-                        x: {
-                            display: false // 隱藏 X 軸日期以免太擠
-                        }
+                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
+                        x: { display: false }
                     },
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            mode: 'index',
-                            intersect: false,
-                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
-                            titleColor: '#10b981',
-                            bodyColor: '#fff',
-                            borderColor: '#334155',
-                            borderWidth: 1
-                        }
-                    }
+                    plugins: { legend: { display: false } }
                 }
             });
         };
 
-        // --- API 串接 ---
+        // --- 雷達圖 (Radar Chart) 完整邏輯 ---
+        const initRadarChart = () => {
+             const ctx = document.getElementById('radarChart');
+             if (!ctx) return;
+             if (radarInstance.value) radarInstance.value.destroy();
+
+             // 計算各部位訓練量
+             const partStats = {};
+             processedList.value.forEach(log => {
+                 const part = log.BodyPart || '其他';
+                 // 分割多部位 (e.g. "胸/肩")
+                 const parts = part.split('/').map(p => p.trim());
+                 parts.forEach(p => {
+                     if(!partStats[p]) partStats[p] = 0;
+                     partStats[p] += (parseFloat(log.Vol) || 0);
+                 });
+             });
+
+             // 排序並取前 8 大部位
+             const sortedParts = Object.entries(partStats)
+                .sort((a,b) => b[1] - a[1])
+                .slice(0, 8); 
+
+             const labels = sortedParts.map(p => p[0]);
+             const data = sortedParts.map(p => p[1]);
+
+             radarInstance.value = new Chart(ctx, {
+                 type: 'radar',
+                 data: {
+                     labels: labels,
+                     datasets: [{
+                         label: '部位訓練量 (kg)',
+                         data: data,
+                         backgroundColor: 'rgba(168, 85, 247, 0.2)', // Purple
+                         borderColor: '#a855f7',
+                         pointBackgroundColor: '#a855f7',
+                         pointBorderColor: '#fff',
+                         pointHoverBackgroundColor: '#fff',
+                         pointHoverBorderColor: '#a855f7'
+                     }]
+                 },
+                 options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: '#334155' },
+                            grid: { color: '#334155' },
+                            pointLabels: { color: '#cbd5e1', font: { size: 12 } },
+                            ticks: { display: false, backdropColor: 'transparent' }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                 }
+             });
+        };
+
+        // --- 資料獲取 ---
         const fetchData = async () => {
             try {
                 // 模擬數據 (如果沒有 API_URL，請替換回真實 fetch)
-                // ⚠️ 請記得將 fetch 換回您原本的邏輯，這裡為了示範保留 fetch 結構
+                // 這裡會使用真實的 API_URL 發送請求
                 const response = await fetch(API_URL);
                 const json = await response.json();
                 
-                // 假設後端回傳格式: { logs: [...], mapping: {...} }
-                // 這裡做個防呆，如果格式不同請調整
-                if(json.logs) rawData.value = json.logs;
+                if(json.logs) {
+                    // 🛡️ 過濾掉標題列 (Date 欄位是 "Date" 的行)
+                    rawData.value = json.logs.filter(row => row.Date !== 'Date' && row.Date !== '');
+                }
                 if(json.mapping) mapping.value = json.mapping;
                 
-                // 如果是第一次載入，先給一些 Demo Data 以防畫面空白 (Testing Only)
-                if(!json.logs && rawData.value.length === 0) {
-                     console.warn("無數據，載入測試資料...");
-                }
-
-                nextTick(() => initCharts());
+                nextTick(() => {
+                    initLineChart();
+                    initRadarChart();
+                });
             } catch (e) {
                 console.error("載入失敗", e);
-                // 錯誤處理...
             } finally {
                 loading.value = false;
             }
         };
 
-        const openEditModal = (item) => {
-            editingItem.value = {
-                exercise: item.Exercise,
-                newCategory: item.Category,
-                newBodyPart: item.BodyPart,
-                newNote: mapping.value[item.Exercise]?.note || ''
-            };
-            showModal.value = true;
-        };
-
+        // --- 儲存分類 (完整版) ---
         const saveCategory = async () => {
             saving.value = true;
             try {
@@ -484,18 +528,37 @@ createApp({
                     note: editingItem.value.newNote
                 };
                 showModal.value = false;
-                nextTick(() => initCharts()); 
+                
+                // 重新渲染所有圖表
+                nextTick(() => { 
+                    initLineChart(); 
+                    initRadarChart(); 
+                }); 
             } catch (e) {
                 alert("儲存失敗: " + e.message);
             } finally {
                 saving.value = false;
             }
         };
+        
+        // 開啟編輯視窗
+        const openEditModal = (item) => {
+             editingItem.value = {
+                exercise: item.Exercise,
+                newCategory: item.Category,
+                newBodyPart: item.BodyPart,
+                newNote: mapping.value[item.Exercise]?.note || ''
+            };
+            showModal.value = true;
+        };
 
         // 監聽變數以重繪圖表
         watch([currentView, selectedCategory, chartMode], () => {
             if(currentView.value === 'dashboard') {
-                nextTick(() => initCharts());
+                nextTick(() => {
+                    initLineChart();
+                    initRadarChart();
+                });
             }
         });
 
@@ -509,7 +572,6 @@ createApp({
             currentView, searchQuery, selectedCategory, chartMode,
             fetchData,
             showModal, editingItem, openEditModal, saveCategory, saving,
-            // 1RM 相關
             calcWeight, calcReps, calculated1RM, percentages
         };
     }
