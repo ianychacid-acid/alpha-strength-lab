@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Lab v2.1.2 | Diagnostic Mode</title>
+    <title>Alpha Strength Lab v2.1.4 | Director's Console</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -31,20 +31,6 @@
 <body class="text-slate-200 min-h-screen pb-20">
 
 <div id="app" class="max-w-7xl mx-auto relative min-h-screen bg-slate-900 shadow-2xl overflow-hidden">
-
-    <div v-if="debugMsg || rawData.length === 0" class="bg-red-900/90 text-white p-4 text-xs font-mono break-all border-b border-red-500 z-[100] sticky top-0">
-        <h3 class="font-bold text-lg mb-2">🚑 系統診斷模式 (Diagnostic Mode)</h3>
-        <p><strong>Status:</strong> {{ loading ? '載入中...' : '載入完成' }}</p>
-        <p><strong>Data Count:</strong> {{ rawData.length }} 筆</p>
-        <p><strong>Mapping Count:</strong> {{ Object.keys(mapping).length }} 筆</p>
-        <p><strong>API URL:</strong> {{ API_URL }}</p>
-        <div v-if="lastError" class="bg-black p-2 mt-2 rounded text-red-400">Error: {{ lastError }}</div>
-        <div v-if="rawData.length > 0" class="mt-2">
-            <strong>第一筆資料結構 (請截圖給 Beta):</strong>
-            <pre class="bg-black p-2 rounded mt-1">{{ JSON.stringify(rawData[0], null, 2) }}</pre>
-        </div>
-        <button @click="fetchData" class="btn btn-sm btn-warning mt-2">強制重試</button>
-    </div>
 
     <nav class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50 px-4 py-3 flex justify-between items-center">
         <div class="flex items-center gap-2">
@@ -109,13 +95,12 @@
 
             <div v-show="currentView === 'list'" class="space-y-4 max-w-4xl mx-auto">
                 <div v-if="filteredList.length === 0" class="text-center p-10 text-slate-500">
-                    <p>沒有符合的資料，或資料讀取失敗。</p>
+                    <p>沒有符合的資料 (請檢查搜尋條件)</p>
                 </div>
-
                 <div v-for="(log, index) in filteredList" :key="index" class="group bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-emerald-500/50 transition-all duration-300">
                     <div class="flex justify-between items-start mb-2">
                         <div>
-                            <h3 class="font-bold text-white text-lg">{{ log.Exercise || '未命名動作' }}</h3>
+                            <h3 class="font-bold text-white text-lg">{{ log.Exercise }}</h3>
                             <span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded">{{ log.Date }}</span>
                             <span class="ml-2 text-xs text-emerald-400 border border-emerald-900 px-2 py-0.5 rounded">{{ log.Category }}</span>
                         </div>
@@ -212,51 +197,57 @@ createApp({
         const editingItem = ref({ exercise: '', newCategory: '', newBodyPart: '', newNote: '' });
         const calcWeight = ref(null);
         const calcReps = ref(null);
-        
-        // Debug 狀態
-        const lastError = ref(null);
-        const debugMsg = ref(false);
         const chartInstance = ref(null);
         const radarInstance = ref(null);
 
-        // ⚠️ 請填入您的 GAS Exec URL ⚠️
-        const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
+        // ⚠️ 請填入您的 GAS Exec URL (請確認網址正確)
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz_d_6YtW8sHq-uO-yC-aFf9Qy_L5W_.../exec'; 
 
-        // 1RM Computed
         const calculated1RM = computed(() => {
             if (!calcWeight.value || !calcReps.value) return 0;
             return Math.round((calcWeight.value * (1 + calcReps.value / 30)) * 10) / 10;
         });
 
-        // 容錯版: 取得分類列表
         const uniqueCategories = computed(() => {
-            // 就算 mapping 是空的，也至少給一個 '全部'
             const cats = new Set(Object.values(mapping.value || {}).map(m => m.category || '未分類'));
             return ['全部', ...Array.from(cats).sort()];
         });
 
-        // 容錯版: 處理列表
+        // 🚨 核心修復：強制對應中文欄位 🚨
         const processedList = computed(() => {
             if (!rawData.value || !Array.isArray(rawData.value)) return [];
             return rawData.value.map(log => {
-                // 防呆：如果 log 沒有 Exercise 欄位，給預設值
-                const exName = log.Exercise || log['動作名稱'] || 'Unknown'; 
+                const exName = log['動作名稱'] || 'Unknown'; 
                 const mapInfo = mapping.value[exName] || {};
+                
+                // 數據清洗與欄位對應
+                const w = parseFloat(log['重量 (kg)']) || 0;
+                const r = parseInt(log['次數 (Reps)']) || 0;
+                const s = parseInt(log['組數 (Sets)']) || 0;
+                
+                // 自動計算容量 (如果 Excel 裡沒有 Vol 欄位)
+                let vol = parseFloat(log.Vol);
+                if (isNaN(vol)) vol = w * r * s; // 自動補算
+
                 return {
-                    ...log,
-                    Exercise: exName,
+                    Date: log['日期'] || '-', 
+                    Exercise: exName,        
+                    Weight: w,
+                    Sets: s,
+                    Reps: r,
+                    Vol: vol,
+                    '1RM': parseFloat(log['預估1RM']) || 0,
+                    Video_Link: log['影片連結'] || '',
+                    
                     Category: mapInfo.category || '未分類',
                     BodyPart: mapInfo.bodyPart || '未知'
                 };
-            });
+            }).filter(log => log.Exercise !== 'Unknown' && log.Exercise !== '動作名稱');
         });
 
-        // 容錯版: 篩選
         const filteredList = computed(() => {
             let list = processedList.value;
-            // 如果沒資料，直接回傳空陣列，不要報錯
             if(list.length === 0) return [];
-
             if (searchQuery.value) {
                 const q = searchQuery.value.toLowerCase();
                 list = list.filter(item => item.Exercise.toLowerCase().includes(q));
@@ -264,7 +255,6 @@ createApp({
             if (selectedCategory.value !== '全部') {
                 list = list.filter(item => item.Category === selectedCategory.value);
             }
-            // 排序 (若日期格式錯誤，當作今天)
             return list.sort((a, b) => {
                 const da = new Date(a.Date);
                 const db = new Date(b.Date);
@@ -272,118 +262,114 @@ createApp({
             });
         });
 
-        // 容錯版: 統計
         const stats = computed(() => {
             const list = processedList.value;
-            const totalVol = list.reduce((sum, item) => sum + (parseFloat(item.Vol) || 0), 0);
+            const totalVol = list.reduce((sum, item) => sum + item.Vol, 0); 
+            const uniqueDates = new Set(list.map(i => i.Date).filter(d => d && d !== '日期'));
             return {
                 totalVolume: Math.round(totalVol),
-                totalWorkouts: new Set(list.map(i => i.Date)).size,
-                lastWorkout: list.length > 0 ? list[0].Date : '-'
+                totalWorkouts: uniqueDates.size,
+                lastWorkout: filteredList.value.length > 0 ? filteredList.value[0].Date : '-'
             };
         });
 
-        // Chart Logic (Simplified for stability)
         const initCharts = () => {
             const ctxLine = document.getElementById('trainingChart');
             const ctxRadar = document.getElementById('radarChart');
-            
             if (chartInstance.value) chartInstance.value.destroy();
             if (radarInstance.value) radarInstance.value.destroy();
-
             if (!ctxLine || !ctxRadar || filteredList.value.length === 0) return;
 
-            // --- Line Chart ---
             const dataMap = {};
             [...filteredList.value].reverse().forEach(log => {
-                const dStr = log.Date ? log.Date.toString().split('T')[0] : 'Unknown';
+                const dStr = log.Date; 
                 if (!dataMap[dStr]) dataMap[dStr] = { vol: 0, max1rm: 0 };
-                if (chartMode.value === 'volume') dataMap[dStr].vol += (parseFloat(log.Vol) || 0);
+                if (chartMode.value === 'volume') dataMap[dStr].vol += log.Vol;
                 else {
-                    const r = parseFloat(log['1RM']) || 0;
+                    const r = log['1RM'];
                     if (r > dataMap[dStr].max1rm) dataMap[dStr].max1rm = r;
                 }
             });
             const labels = Object.keys(dataMap);
             const vals = labels.map(k => chartMode.value === 'volume' ? dataMap[k].vol : dataMap[k].max1rm);
-
-            chartInstance.value = new Chart(ctxLine, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Value', data: vals,
-                        borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)',
-                        fill: true, tension: 0.3
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, scales: { x: { display: false } } }
+            
+            chartInstance.value = new Chart(ctxLine, { 
+                 type: 'line',
+                 data: { labels: labels, datasets: [{ label: 'Value', data: vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }] },
+                 options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, scales: { y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { display: false } }, plugins: { legend: { display: false } } }
             });
 
-            // --- Radar Chart ---
             const partStats = {};
             processedList.value.forEach(log => {
                 const parts = (log.BodyPart || '其他').split('/');
                 parts.forEach(p => {
                     const k = p.trim();
-                    partStats[k] = (partStats[k] || 0) + (parseFloat(log.Vol) || 0);
+                    partStats[k] = (partStats[k] || 0) + log.Vol;
                 });
             });
             const sortedParts = Object.entries(partStats).sort((a,b)=>b[1]-a[1]).slice(0,8);
             
-            radarInstance.value = new Chart(ctxRadar, {
+            radarInstance.value = new Chart(ctxRadar, { 
                 type: 'radar',
-                data: {
-                    labels: sortedParts.map(x=>x[0]),
-                    datasets: [{
-                        label: 'Volume', data: sortedParts.map(x=>x[1]),
-                        backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: '#a855f7'
-                    }]
-                },
-                options: { responsive: true, maintainAspectRatio: false, plugins:{legend:{display:false}}, scales:{r:{ticks:{display:false}}} }
+                data: { labels: sortedParts.map(x=>x[0]), datasets: [{ label: 'Volume', data: sortedParts.map(x=>x[1]), backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: '#a855f7' }] },
+                options: { responsive: true, maintainAspectRatio: false, plugins:{legend:{display:false}}, scales:{r:{ticks:{display:false}, angleLines: { color: '#334155' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1', font: { size: 12 } } }} }
             });
         };
 
         const fetchData = async () => {
             loading.value = true;
-            lastError.value = null;
             try {
-                // 檢查 API_URL 是否為空
-                if(API_URL.includes('...')) {
-                    throw new Error("請先在程式碼中填入正確的 API_URL！");
-                }
-                
+                if(API_URL.includes('...')) throw new Error("API_URL 未填入。請修正 index.html 中的 API_URL。");
                 const res = await fetch(API_URL);
                 if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
-                
                 const json = await res.json();
-                console.log("API Response:", json); // Console Debug
-
-                if(json.logs && Array.isArray(json.logs)) {
-                    // 不再過濾 Date，全部收進來
-                    rawData.value = json.logs; 
-                } else {
-                    throw new Error("回傳格式錯誤：找不到 logs 陣列");
-                }
-
+                
+                if(json.logs && Array.isArray(json.logs)) rawData.value = json.logs; 
                 if(json.mapping) mapping.value = json.mapping;
-                else console.warn("找不到 mapping 資料");
-
                 nextTick(() => initCharts());
-
             } catch (e) {
-                console.error(e);
-                lastError.value = e.message;
-                debugMsg.value = true; // 出錯時顯示診斷框
+                console.error("載入失敗:", e.message);
+                alert(`資料載入失敗：${e.message}`);
             } finally {
                 loading.value = false;
             }
         };
 
-        // ... (Save logic 省略，保持不變) ...
-        const saveCategory = async () => { /* ...與前版相同... */ };
-        const openEditModal = (item) => { /* ...與前版相同... */ 
-             editingItem.value = { exercise: item.Exercise, newCategory: item.Category || '', newBodyPart: item.BodyPart || '', newNote: '' };
+        const saveCategory = async () => { 
+            saving.value = true;
+            try {
+                await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        action: "updateCategory",
+                        exerciseName: editingItem.value.exercise,
+                        newCategory: editingItem.value.newCategory,
+                        newBodyPart: editingItem.value.newBodyPart,
+                        newNote: editingItem.value.newNote
+                    }),
+                    headers: { "Content-Type": "text/plain" }
+                });
+                mapping.value[editingItem.value.exercise] = {
+                    category: editingItem.value.newCategory,
+                    bodyPart: editingItem.value.newBodyPart,
+                    note: editingItem.value.newNote
+                };
+                showModal.value = false;
+                nextTick(() => { initCharts(); }); 
+            } catch (e) {
+                alert("儲存失敗: " + e.message);
+            } finally {
+                saving.value = false;
+            }
+        };
+        
+        const openEditModal = (item) => { 
+             editingItem.value = { 
+                exercise: item.Exercise, 
+                newCategory: item.Category || '', 
+                newBodyPart: item.BodyPart || '', 
+                newNote: mapping.value[item.Exercise]?.note || ''
+             };
              showModal.value = true;
         };
 
@@ -391,8 +377,7 @@ createApp({
         onMounted(() => fetchData());
 
         return {
-            loading, rawData, mapping, lastError, debugMsg, API_URL, // Debug 變數
-            stats, filteredList, uniqueCategories,
+            loading, stats, filteredList, uniqueCategories,
             currentView, searchQuery, selectedCategory, chartMode,
             fetchData, showModal, editingItem, openEditModal, saveCategory, saving,
             calcWeight, calcReps, calculated1RM 
