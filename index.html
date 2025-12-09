@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Console v2.1.6</title>
+    <title>Alpha Strength Console v2.1.7</title>
     
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💪</text></svg>">
 
@@ -21,8 +21,9 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #1e293b; }
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
-        .chart-container { position: relative; height: 300px; width: 100%; }
-        .radar-container { position: relative; height: 350px; width: 100%; }
+        /* 確保 Chart 容器有明確高度，避免 Chart.js 算錯 */
+        .chart-container { position: relative; height: 300px; width: 100%; min-width: 0; }
+        .radar-container { position: relative; height: 350px; width: 100%; min-width: 0; }
         
         @media (min-width: 1024px) {
             .dashboard-grid { display: grid; grid-template-columns: 350px 1fr; gap: 24px; align-items: start; }
@@ -80,8 +81,8 @@
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-white flex items-center gap-2">訓練趨勢 (History)</h3>
                             <div class="btn-group">
-                                <button @click="chartMode = 'volume'" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
-                                <button @click="chartMode = '1rm'" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
+                                <button @click="setChartMode('volume')" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
+                                <button @click="setChartMode('1rm')" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
                             </div>
                         </div>
                         <div class="chart-container"><canvas id="trainingChart"></canvas></div>
@@ -183,7 +184,8 @@
 </div>
 
 <script>
-const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
+// 🚨 Fix: 引入 shallowRef 和 markRaw 避免 Proxy 衝突
+const { createApp, ref, shallowRef, markRaw, computed, onMounted, watch, nextTick } = Vue;
 
 createApp({
     setup() {
@@ -199,10 +201,12 @@ createApp({
         const editingItem = ref({ exercise: '', newCategory: '', newBodyPart: '', newNote: '' });
         const calcWeight = ref(null);
         const calcReps = ref(null);
-        const chartInstance = ref(null);
-        const radarInstance = ref(null);
+        
+        // 🚨 Fix: 使用 shallowRef 來存放 Chart 實例，避免 Vue 深度監聽導致崩潰
+        const chartInstance = shallowRef(null);
+        const radarInstance = shallowRef(null);
 
-        // ⚠️ API URL 
+        // ⚠️ API URL (確保是 Exec URL)
         const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
 
         const viewName = computed(() => {
@@ -221,14 +225,14 @@ createApp({
             return ['全部', ...Array.from(cats).sort()];
         });
 
-        // ✅ Fix 4: 強制數據轉型 (修復圖表空白問題)
+        // 數據清洗
         const processedList = computed(() => {
             if (!rawData.value || !Array.isArray(rawData.value)) return [];
             return rawData.value.map(log => {
                 const exName = log.exercise || 'Unknown'; 
                 const mapInfo = mapping.value[exName] || {};
                 
-                // 強制將字串轉為數字 (移除 kg 等文字)
+                // 強制轉型：確保數字運算正確
                 const cleanNum = (val) => {
                     if (typeof val === 'number') return val;
                     if (!val) return 0;
@@ -239,7 +243,7 @@ createApp({
                 const r = cleanNum(log.reps);
                 const s = cleanNum(log.sets);
                 
-                let vol = w * r * s; // 自動計算
+                let vol = w * r * s; 
 
                 return {
                     Date: log.date || '-', 
@@ -250,7 +254,6 @@ createApp({
                     Vol: vol,
                     '1RM': cleanNum(log.oneRm),
                     Video_Link: log.videoLink || '',
-                    
                     Category: mapInfo.category || '未分類',
                     BodyPart: mapInfo.bodyPart || '未知'
                 };
@@ -285,11 +288,27 @@ createApp({
             };
         });
 
+        // 手動切換圖表模式的函式
+        const setChartMode = (mode) => {
+            chartMode.value = mode;
+            // 不需要手動 destroy，watch 會觸發 initCharts
+        };
+
         const initCharts = () => {
             const ctxLine = document.getElementById('trainingChart');
             const ctxRadar = document.getElementById('radarChart');
-            if (chartInstance.value) chartInstance.value.destroy();
-            if (radarInstance.value) radarInstance.value.destroy();
+
+            // 銷毀舊圖表 (如果存在)
+            if (chartInstance.value) {
+                chartInstance.value.destroy();
+                chartInstance.value = null;
+            }
+            if (radarInstance.value) {
+                radarInstance.value.destroy();
+                radarInstance.value = null;
+            }
+
+            // 如果 DOM 不存在或沒資料，則不繪圖
             if (!ctxLine || !ctxRadar || filteredList.value.length === 0) return;
 
             // Line Chart
@@ -298,7 +317,6 @@ createApp({
                 const dStr = log.Date; 
                 if (!dataMap[dStr]) dataMap[dStr] = { vol: 0, max1rm: 0 };
                 
-                // ✅ Fix: 確保累加時不會有 NaN
                 if (chartMode.value === 'volume') {
                     if(!isNaN(log.Vol)) dataMap[dStr].vol += log.Vol;
                 } else {
@@ -309,11 +327,12 @@ createApp({
             const labels = Object.keys(dataMap);
             const vals = labels.map(k => chartMode.value === 'volume' ? dataMap[k].vol : dataMap[k].max1rm);
             
-            chartInstance.value = new Chart(ctxLine, { 
+            // 🚨 Fix: 使用 markRaw 包裹 Chart 實例，告訴 Vue 不要代理它
+            chartInstance.value = markRaw(new Chart(ctxLine, { 
                  type: 'line',
                  data: { labels: labels, datasets: [{ label: '數值', data: vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }] },
                  options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, scales: { y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { display: false } }, plugins: { legend: { display: false } } }
-            });
+            }));
 
             // Radar Chart
             const partStats = {};
@@ -327,24 +346,25 @@ createApp({
             });
             const sortedParts = Object.entries(partStats).sort((a,b)=>b[1]-a[1]).slice(0,8);
             
-            radarInstance.value = new Chart(ctxRadar, { 
+            radarInstance.value = markRaw(new Chart(ctxRadar, { 
                 type: 'radar',
                 data: { labels: sortedParts.map(x=>x[0]), datasets: [{ label: '總容量', data: sortedParts.map(x=>x[1]), backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: '#a855f7' }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins:{legend:{display:false}}, scales:{r:{ticks:{display:false}, angleLines: { color: '#334155' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1', font: { size: 12 } } }} }
-            });
+            }));
         };
 
         const fetchData = async () => {
             loading.value = true;
             try {
                 if(API_URL.includes('...')) throw new Error("API_URL 未填入。");
-                
                 const res = await fetch(API_URL + "?type=json");
                 if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const json = await res.json();
                 
                 if(json.logs && Array.isArray(json.logs)) rawData.value = json.logs; 
                 if(json.mapping) mapping.value = json.mapping;
+                
+                // 確保 DOM 渲染完畢後再畫圖
                 nextTick(() => initCharts());
             } catch (e) {
                 console.error("載入失敗:", e.message);
@@ -392,13 +412,14 @@ createApp({
              showModal.value = true;
         };
 
+        // 監聽變化重繪圖表
         watch([currentView, selectedCategory, chartMode], () => nextTick(() => initCharts()));
         onMounted(() => fetchData());
 
         return {
             loading, viewName,
             stats, filteredList, uniqueCategories,
-            currentView, searchQuery, selectedCategory, chartMode,
+            currentView, searchQuery, selectedCategory, chartMode, setChartMode,
             fetchData, showModal, editingItem, openEditModal, saveCategory, saving,
             calcWeight, calcReps, calculated1RM 
         };
