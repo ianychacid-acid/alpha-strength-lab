@@ -333,9 +333,14 @@ createApp({
             const list = processedList.value;
             const totalVol = list.reduce((sum, item) => sum + (parseFloat(item.Vol) || 0), 0);
             
-            // 處理日期格式
-            const dates = list.map(item => new Date(item.Date)).sort((a,b) => b-a);
-            const lastDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : '無紀錄';
+            // --- Fix: 防止 Invalid time value 錯誤 ---
+            const validDates = list
+                .map(item => new Date(item.Date))
+                .filter(dateObj => !isNaN(dateObj.getTime())); // 過濾無效日期
+
+            validDates.sort((a,b) => b-a);
+            const lastDate = validDates.length > 0 ? validDates[0].toISOString().split('T')[0] : '無紀錄';
+            // ---------------------------------------
 
             return {
                 totalVolume: Math.round(totalVol),
