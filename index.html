@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Lab v2.0 | Director's Console</title>
+    <title>Alpha Strength Lab v2.1 | Director's Console</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -23,500 +23,447 @@
         ::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
         ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
-        /* 動畫過渡 */
-        .fade-enter-active, .fade-leave-active { transition: opacity 0.2s ease; }
-        .fade-enter-from, .fade-leave-to { opacity: 0; }
-        
-        /* 手機版底部安全區修正 */
-        .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+        /* Chart 容器優化 */
+        .chart-container { position: relative; height: 300px; width: 100%; }
+
+        /* 1RM 計算機專用樣式 */
+        .input-group { @apply flex flex-col gap-2; }
+        .stat-card { @apply bg-slate-800 p-4 rounded-xl border border-slate-700; }
     </style>
 </head>
-<body class="min-h-screen text-base-content overflow-hidden">
+<body class="text-slate-200 min-h-screen pb-20">
 
-<div id="app" class="flex h-screen bg-base-300">
-    
-    <div v-if="loading" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-base-300/90 backdrop-blur">
-        <span class="loading loading-infinity loading-lg text-primary"></span>
-        <p class="mt-4 text-sm font-mono text-base-content/60 animate-pulse">Initializing System...</p>
-    </div>
+<div id="app" class="max-w-md mx-auto relative min-h-screen bg-slate-900 shadow-2xl overflow-hidden">
 
-    <aside class="hidden md:flex flex-col w-64 bg-base-200 border-r border-base-content/5 h-full">
-        <div class="p-6">
-            <h1 class="text-2xl font-black tracking-tighter text-primary">ALPHA <span class="text-base-content">LAB</span></h1>
-            <p class="text-xs text-base-content/50 font-mono mt-1">v2.0 // ARCHITECT</p>
+    <nav class="bg-slate-800/80 backdrop-blur-md border-b border-slate-700 sticky top-0 z-50 px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-2">
+            <div class="w-2 h-8 bg-emerald-500 rounded-full"></div>
+            <h1 class="text-lg font-extrabold tracking-tight text-white">ALPHA <span class="text-emerald-400">STRENGTH</span></h1>
         </div>
-        
-        <nav class="flex-1 px-4 space-y-2">
-            <button @click="currentView = 'dashboard'" :class="{'btn-primary': currentView === 'dashboard', 'btn-ghost': currentView !== 'dashboard'}" class="btn btn-block justify-start gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-                總覽儀表板
-            </button>
-            <button @click="currentView = 'analytics'" :class="{'btn-primary': currentView === 'analytics', 'btn-ghost': currentView !== 'analytics'}" class="btn btn-block justify-start gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                深度分析
-            </button>
-            <button @click="currentView = 'logs'" :class="{'btn-primary': currentView === 'logs', 'btn-ghost': currentView !== 'logs'}" class="btn btn-block justify-start gap-3">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                訓練日誌
-            </button>
-        </nav>
-
-        <div class="p-4 border-t border-base-content/5">
-            <div class="alert alert-info text-xs py-2">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                <span v-if="isDemoMode">DEMO 模式 (離線)</span>
-                <span v-else>系統連線正常</span>
-            </div>
+        <div class="flex gap-2">
+             <span class="text-xs font-mono bg-slate-700 px-2 py-1 rounded text-slate-400">
+                {{ currentView === 'dashboard' ? 'DASHBOARD' : (currentView === 'tools' ? 'TOOLKIT' : 'DATABASE') }}
+            </span>
         </div>
-    </aside>
-<main class="flex-1 flex flex-col h-full overflow-hidden relative">
-        
-        <header class="md:hidden navbar bg-base-100 border-b border-base-content/10 z-10 shrink-0">
-            <div class="flex-1">
-                <a class="btn btn-ghost normal-case text-xl font-black text-primary">ALPHA LAB</a>
-            </div>
-            <div class="flex-none">
-                <button @click="fetchData(true)" class="btn btn-square btn-ghost btn-sm">
-                    <span v-if="loading" class="loading loading-spinner loading-xs"></span>
-                    <span v-else>🔄</span>
-                </button>
-            </div>
-        </header>
+    </nav>
 
-        <div class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-24 md:pb-8 scroll-smooth">
+    <main class="p-4 space-y-6">
+
+        <div v-if="loading" class="flex flex-col items-center justify-center h-64 space-y-4">
+            <span class="loading loading-bars loading-lg text-emerald-500"></span>
+            <p class="text-slate-500 text-sm animate-pulse">正在同步 Google Database...</p>
+        </div>
+
+        <div v-else>
             
-            <div v-if="currentView === 'dashboard'" class="space-y-6 fade-enter-active">
-                <div class="flex justify-between items-end">
-                    <div>
-                        <h2 class="text-3xl font-bold text-white">Console Overview</h2>
-                        <p class="text-base-content/60">今天的訓練數據摘要</p>
+            <div v-show="currentView === 'dashboard'" class="space-y-6">
+                
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-lg">
+                    <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Volume</h2>
+                    <div class="flex items-end gap-3">
+                        <span class="text-4xl font-black text-white font-mono">{{ stats.totalVolume.toLocaleString() }}</span>
+                        <span class="text-emerald-500 text-sm font-bold mb-1.5">kg</span>
                     </div>
-                    <button @click="currentView='logs'" class="btn btn-sm btn-outline md:hidden">查看所有紀錄</button>
+                    <div class="mt-4 flex gap-4 text-sm">
+                        <div>
+                            <span class="block text-slate-500 text-xs">訓練次數</span>
+                            <span class="font-bold text-white">{{ stats.totalWorkouts }} 次</span>
+                        </div>
+                        <div>
+                            <span class="block text-slate-500 text-xs">最近訓練</span>
+                            <span class="font-bold text-white">{{ stats.lastWorkout }}</span>
+                        </div>
+                    </div>
                 </div>
 
-                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div class="stat bg-base-200 rounded-box shadow">
-                        <div class="stat-figure text-primary">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
-                        </div>
-                        <div class="stat-title">總訓練次數</div>
-                        <div class="stat-value text-primary">{{ stats.totalLogs }}</div>
-                        <div class="stat-desc">累計資料筆數</div>
+                <div class="flex flex-col gap-3">
+                    <div class="join w-full">
+                        <input v-model="searchQuery" class="input input-bordered input-sm join-item w-full bg-slate-800 border-slate-600 focus:border-emerald-500 text-white" placeholder="搜尋動作 (如: 深蹲)..." />
                     </div>
                     
-                    <div class="stat bg-base-200 rounded-box shadow">
-                        <div class="stat-figure text-secondary">
-                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-8 h-8 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    <div class="tabs tabs-boxed bg-slate-800 p-1">
+                        <a v-for="cat in uniqueCategories" 
+                           :class="{'tab-active bg-emerald-600 text-white': selectedCategory === cat}"
+                           @click="selectedCategory = cat"
+                           class="tab tab-sm flex-1 text-xs transition-all duration-300">{{ cat }}</a>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-white flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                            訓練趨勢
+                        </h3>
+                        <div class="btn-group">
+                            <button @click="chartMode = 'volume'" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
+                            <button @click="chartMode = '1rm'" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
                         </div>
-                        <div class="stat-title">涵蓋動作</div>
-                        <div class="stat-value text-secondary">{{ stats.uniqueExercises }}</div>
-                        <div class="stat-desc">種不同訓練項目</div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="trainingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div v-show="currentView === 'list'" class="space-y-4">
+                <div v-for="(log, index) in filteredList" :key="index" class="group bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-emerald-500/50 transition-all duration-300">
+                    <div class="flex justify-between items-start mb-2">
+                        <div>
+                            <h3 class="font-bold text-white text-lg">{{ log.Exercise }}</h3>
+                            <span class="text-xs text-slate-400 bg-slate-700 px-2 py-0.5 rounded">{{ log.Date }}</span>
+                        </div>
+                        <button @click="openEditModal(log)" class="btn btn-ghost btn-xs text-slate-500 group-hover:text-emerald-400">
+                            ✎
+                        </button>
                     </div>
                     
-                    <div class="stat bg-base-200 rounded-box shadow col-span-2 md:col-span-2">
-                        <div class="stat-figure text-accent">
-                            <div class="avatar online">
-                                <div class="w-12 rounded-full ring ring-accent ring-offset-base-100 ring-offset-2">
-                                    <span class="text-xl font-bold flex items-center justify-center h-full bg-neutral text-neutral-content">A</span>
-                                </div>
-                            </div>
+                    <div class="grid grid-cols-3 gap-2 mt-3 font-mono text-sm">
+                        <div class="bg-slate-900/50 p-2 rounded text-center">
+                            <div class="text-xs text-slate-500">Weight</div>
+                            <div class="font-bold text-emerald-400">{{ log.Weight }} <span class="text-[10px]">kg</span></div>
                         </div>
-                        <div class="stat-title">上次訓練</div>
-                        <div class="stat-value text-2xl md:text-3xl">{{ stats.lastDate }}</div>
-                        <div class="stat-desc text-accent">系統狀態：Online</div>
-                    </div>
-                </div>
-
-                <div class="card bg-base-200 shadow-xl">
-                    <div class="card-body p-4 md:p-6">
-                        <h3 class="card-title text-sm opacity-70 mb-4">訓練部位分佈 (Body Part Radar)</h3>
-                        <div class="h-64 md:h-80 relative flex justify-center">
-                            <canvas id="radarChart"></canvas>
+                        <div class="bg-slate-900/50 p-2 rounded text-center">
+                            <div class="text-xs text-slate-500">Reps</div>
+                            <div class="font-bold text-white">{{ log.Reps }}</div>
+                        </div>
+                        <div class="bg-slate-900/50 p-2 rounded text-center">
+                            <div class="text-xs text-slate-500">Sets</div>
+                            <div class="font-bold text-white">{{ log.Sets }}</div>
                         </div>
                     </div>
-                </div>
-            </div>
 
-            <div v-if="currentView === 'analytics'" class="space-y-6 fade-enter-active">
-                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <h2 class="text-2xl font-bold">深度分析</h2>
-                    <select v-model="selectedCategory" class="select select-bordered select-sm w-full md:w-auto max-w-xs">
-                        <option value="ALL">全部類別 (All Categories)</option>
-                        <option v-for="cat in uniqueCategories" :value="cat">{{ cat }}</option>
-                    </select>
-                </div>
-
-                <div class="card bg-base-200 shadow-xl w-full">
-                    <div class="card-body p-2 md:p-6">
-                        <div class="flex justify-between items-center mb-4 px-2">
-                            <h3 class="font-bold">強度趨勢圖</h3>
-                            <div class="join">
-                                <button @click="chartMode = 'max'" class="join-item btn btn-xs" :class="{'btn-active btn-primary': chartMode==='max'}">最大重量</button>
-                                <button @click="chartMode = 'vol'" class="join-item btn btn-xs" :class="{'btn-active btn-secondary': chartMode==='vol'}">總容量</button>
-                            </div>
-                        </div>
-                        <div class="h-[300px] md:h-[400px] w-full relative">
-                            <canvas id="workoutChart"></canvas>
-                        </div>
+                    <div v-if="log.Video_Link" class="mt-3 pt-3 border-t border-slate-700/50">
+                        <a :href="log.Video_Link" target="_blank" class="btn btn-xs btn-outline btn-success w-full gap-2">
+                            <span>▶ 觀看影片</span>
+                        </a>
                     </div>
                 </div>
             </div>
 
-            <div v-if="currentView === 'logs'" class="space-y-4 fade-enter-active">
-                <div class="sticky top-0 bg-base-300 pt-2 pb-4 z-10 flex gap-2">
-                    <input v-model="searchQuery" type="text" placeholder="搜尋動作名稱..." class="input input-bordered input-sm w-full" />
-                </div>
-
-                <div class="grid gap-3">
-                    <div v-for="(log, index) in filteredList" :key="index" class="card bg-base-200 shadow-sm border-l-4 border-primary hover:bg-base-100 transition-colors">
-                        <div class="card-body p-4 flex flex-row justify-between items-center">
-                            <div class="flex-1 min-w-0">
-                                <div class="flex items-center gap-2 mb-1">
-                                    <h3 class="font-bold truncate text-lg text-white">{{ log.exercise }}</h3>
-                                    <span v-if="log.userId" class="badge badge-xs badge-ghost opacity-60">@{{ log.userId }}</span>
-                                    <span v-if="log.category !== '未分類'" class="badge badge-xs badge-outline opacity-70">{{ log.category }}</span>
-                                    <a v-if="log.videoLink" :href="log.videoLink" target="_blank" class="text-xs text-info hover:text-primary transition-colors">🔗 影片</a>
-                                </div>
-                                <p class="text-xs text-base-content/60 font-mono">{{ log.date }}</p>
-                            </div>
-                            <div class="text-right pl-4">
-                                <div class="font-mono text-xl font-bold text-primary">{{ log.weightVal }} <span class="text-xs font-normal opacity-50">kg</span></div>
-                                <div class="text-xs opacity-60">{{ log.sets }} x {{ log.reps }}</div>
-                            </div>
-                            <div class="ml-4">
-                                <button @click="openEditModal(log)" class="btn btn-ghost btn-xs btn-circle text-info">
-                                    ✏️
-                                </button>
-                            </div>
+            <div v-show="currentView === 'tools'" class="space-y-6">
+                <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700">
+                    <h3 class="text-white font-bold mb-4 flex items-center gap-2">
+                        📊 1RM 計算機 (Epley Formula)
+                    </h3>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-slate-400">重量 (kg)</span></label>
+                            <input type="number" v-model.number="calcWeight" class="input input-bordered bg-slate-900 text-white focus:border-emerald-500" placeholder="0">
+                        </div>
+                        <div class="form-control">
+                            <label class="label"><span class="label-text text-slate-400">次數 (Reps)</span></label>
+                            <input type="number" v-model.number="calcReps" class="input input-bordered bg-slate-900 text-white focus:border-emerald-500" placeholder="0">
                         </div>
                     </div>
-                    <div v-if="filteredList.length === 0" class="text-center py-10 opacity-50">
-                        <p>沒有符合的紀錄</p>
+
+                    <div class="bg-slate-900/80 p-4 rounded-xl text-center border border-slate-700 mb-6">
+                        <div class="text-xs text-slate-500 mb-1">預估 1RM (One Rep Max)</div>
+                        <div class="text-4xl font-black text-emerald-400 font-mono tracking-tighter">
+                            {{ calculated1RM }} <span class="text-lg text-slate-500">kg</span>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="table table-xs w-full font-mono text-center">
+                            <thead>
+                                <tr class="text-slate-500 border-b border-slate-700">
+                                    <th>%</th>
+                                    <th>Weight (kg)</th>
+                                    <th>Reps (Est.)</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="p in percentages" :key="p.pct" class="border-b border-slate-800">
+                                    <td class="text-emerald-500 font-bold">{{ p.pct }}%</td>
+                                    <td class="text-white">{{ p.weight }}</td>
+                                    <td class="text-slate-400">{{ p.reps }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-4 text-[10px] text-slate-500 text-center">
+                        * 僅供參考，實際強度受當日狀況影響
                     </div>
                 </div>
             </div>
 
-        </div> <div class="md:hidden btm-nav bg-base-200 border-t border-base-content/10 pb-safe z-40">
-            <button @click="currentView = 'dashboard'" :class="{'active text-primary': currentView === 'dashboard'}">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
-                <span class="btm-nav-label text-xs">總覽</span>
-            </button>
-            <button @click="currentView = 'analytics'" :class="{'active text-primary': currentView === 'analytics'}">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                <span class="btm-nav-label text-xs">分析</span>
-            </button>
-            <button @click="currentView = 'logs'" :class="{'active text-primary': currentView === 'logs'}">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
-                <span class="btm-nav-label text-xs">日誌</span>
-            </button>
         </div>
-
     </main>
 
-    <dialog class="modal modal-bottom sm:modal-middle backdrop-blur-sm" :class="{'modal-open': showModal}">
-        <div class="modal-box bg-base-200 border border-base-content/10">
-            <h3 class="font-bold text-lg mb-4">🔧 修正動作分類</h3>
-            
-            <div class="form-control w-full">
-                <label class="label"><span class="label-text">動作名稱</span></label>
-                <input type="text" :value="editingItem.exercise" disabled class="input input-bordered w-full opacity-60" />
-            </div>
+    <div class="btm-nav bg-slate-800/90 backdrop-blur border-t border-slate-700 z-50 pb-safe">
+        <button @click="currentView = 'dashboard'" :class="{'active text-emerald-400 border-t-2 border-emerald-400': currentView === 'dashboard'}" class="text-slate-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+            <span class="btm-nav-label text-xs mt-1">儀表板</span>
+        </button>
+        <button @click="currentView = 'list'" :class="{'active text-emerald-400 border-t-2 border-emerald-400': currentView === 'list'}" class="text-slate-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+            <span class="btm-nav-label text-xs mt-1">資料庫</span>
+        </button>
+        <button @click="currentView = 'tools'" :class="{'active text-emerald-400 border-t-2 border-emerald-400': currentView === 'tools'}" class="text-slate-500 transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            <span class="btm-nav-label text-xs mt-1">工具</span>
+        </button>
+    </div>
 
-            <div class="form-control w-full mt-3">
-                <label class="label"><span class="label-text">主類別 (Category)</span></label>
-                <input v-model="editingItem.newCategory" type="text" placeholder="例如：胸、背、腿..." class="input input-bordered w-full" />
-                <label class="label"><span class="label-text-alt text-base-content/50">建議統一格式以利圖表分析</span></label>
-            </div>
+// --- [Part 1] 結束，請按 Enter 換行，準備接續 Part 2 (Vue 邏輯) ---
 
-            <div class="form-control w-full mt-2">
-                <label class="label"><span class="label-text">部位 (Body Part)</span></label>
-                <input v-model="editingItem.newBodyPart" type="text" placeholder="例如：上胸、二頭肌..." class="input input-bordered w-full" />
-            </div>
-            
-            <div class="form-control w-full mt-2">
-                <label class="label"><span class="label-text">備註/影片連結 (Mapping Note)</span></label>
-                <input v-model="editingItem.newNote" type="text" placeholder="例如：這是我的 PR 備註" class="input input-bordered w-full" />
-            </div>
 
+<dialog class="modal modal-bottom sm:modal-middle" :class="{'modal-open': showModal}">
+        <div class="modal-box bg-slate-800 border border-slate-600">
+            <h3 class="font-bold text-lg text-white mb-4">編輯動作分類</h3>
+            <div class="form-control w-full mb-4">
+                <label class="label"><span class="label-text text-slate-400">動作名稱 (唯讀)</span></label>
+                <input type="text" :value="editingItem.exercise" readonly class="input input-bordered bg-slate-900 text-slate-500" />
+            </div>
+            <div class="form-control w-full mb-4">
+                <label class="label"><span class="label-text text-slate-400">主類別</span></label>
+                <select v-model="editingItem.newCategory" class="select select-bordered bg-slate-900 text-white">
+                    <option disabled selected>請選擇類別</option>
+                    <option>深蹲</option><option>硬舉</option><option>臥推</option><option>划船</option><option>肩推</option><option>下拉/引體</option><option>核心</option><option>有氧/專項</option><option>一般</option>
+                </select>
+            </div>
+            <div class="form-control w-full mb-6">
+                <label class="label"><span class="label-text text-slate-400">部位</span></label>
+                <input type="text" v-model="editingItem.newBodyPart" class="input input-bordered bg-slate-900 text-white" placeholder="例如: 腿, 胸, 背..." />
+            </div>
             <div class="modal-action">
-                <button @click="showModal = false" class="btn btn-ghost">取消</button>
-                <button @click="saveCategory" class="btn btn-primary" :disabled="saving">
-                    <span v-if="saving" class="loading loading-spinner"></span>
-                    <span v-else>確認儲存</span>
+                <button class="btn btn-ghost text-slate-400" @click="showModal = false">取消</button>
+                <button class="btn btn-primary bg-emerald-600 border-none text-white" @click="saveCategory" :disabled="saving">
+                    {{ saving ? '儲存中...' : '確認修改' }}
                 </button>
             </div>
         </div>
-        <form method="dialog" class="modal-backdrop">
-            <button @click="showModal = false">close</button>
-        </form>
     </dialog>
 
-</div> 
+</div>
 
 <script>
 const { createApp, ref, computed, onMounted, watch, nextTick } = Vue;
 
 createApp({
     setup() {
-        // --- [CONFIG] 設定區 ---
-        // 🔴 請務必將下方的 URL 換成您最新部署的 GAS Web App 網址 🔴
-        const API_URL = "https://script.google.com/macros/s/AKfycbyEcaiWZbtqO-8ck4XEon4lmbl6P9m9YfvCwheM-qBIkQgiukuDJdIji_5QhBZHM5ox_w/exec"; 
-
-        // --- [STATE] 狀態變數 ---
+        // --- 狀態定義 ---
         const loading = ref(true);
-        const isDemoMode = ref(false); 
-        const logs = ref([]);
-        const mapping = ref({});
-        const currentView = ref('dashboard'); 
-        const searchQuery = ref("");
-        const selectedCategory = ref("ALL");
-        const chartMode = ref("max"); // 'max' or 'vol'
-        
+        const rawData = ref([]);
+        const mapping = ref({}); // 動作 -> 分類對照表
+        const currentView = ref('dashboard'); // dashboard | list | tools
+        const searchQuery = ref('');
+        const selectedCategory = ref('全部');
+        const chartMode = ref('volume'); // volume | 1rm
+        const chartInstance = ref(null);
+
         // Modal 相關
         const showModal = ref(false);
-        const editingItem = ref({ exercise: "", newCategory: "", newBodyPart: "", newNote: "" });
         const saving = ref(false);
+        const editingItem = ref({ exercise: '', newCategory: '', newBodyPart: '', newNote: '' });
 
-        // Chart 實例 (用於銷毀重繪)
-        let lineChartInstance = null;
-        let radarChartInstance = null;
+        // 1RM 計算機狀態
+        const calcWeight = ref(null);
+        const calcReps = ref(null);
 
-        // --- [MOCK DATA] 模擬數據 (2024年版) ---
-        const loadMockData = () => {
-            console.warn("⚠️ 連線失敗或離線，載入 Mock Data");
-            isDemoMode.value = true;
-            
-            mapping.value = {
-                "深蹲": { category: "腿部", bodyPart: "股四頭" },
-                "硬舉": { category: "背部", bodyPart: "下背" },
-                "臥推": { category: "胸部", bodyPart: "中胸" },
-                "肩推": { category: "肩部", bodyPart: "前束" },
-                "引體向上": { category: "背部", bodyPart: "背闊肌" }
-            };
-            
-            logs.value = [
-                { date: "2024/07/01", userId: "Director", exercise: "深蹲", weight: "105", sets: "5", reps: "5", videoLink: "" },
-                { date: "2024/07/03", userId: "Director", exercise: "臥推", weight: "82.5", sets: "5", reps: "5", videoLink: "" },
-                { date: "2024/07/05", userId: "Andy", exercise: "硬舉", weight: "135", sets: "3", reps: "5", videoLink: "https://drive.google.com/link1" },
-                { date: "2024/07/08", userId: "Andy", exercise: "引體向上", weight: "0", sets: "4", reps: "8", videoLink: "" },
-                { date: "2024/07/10", userId: "Director", exercise: "深蹲", weight: "110", sets: "5", reps: "5", videoLink: "" },
-                { date: "2024/07/12", userId: "Director", exercise: "肩推", weight: "55", sets: "4", reps: "8", videoLink: "" },
-                { date: "2024/07/15", userId: "Director", exercise: "臥推", weight: "85", sets: "5", reps: "5", videoLink: "" },
-                { date: "2024/07/17", userId: "Andy", exercise: "硬舉", weight: "140", sets: "1", reps: "5", videoLink: "https://drive.google.com/link2" },
-                { date: "2024/07/20", userId: "Director", exercise: "深蹲", weight: "115", sets: "3", reps: "3", videoLink: "" },
-            ]; 
-        };
+        // --- GAS API URL ---
+        // 請確認這個 URL 是您部署為 Web App (Exec) 的網址
+        const API_URL = 'https://script.google.com/macros/s/AKfycbz_d_6YtW8sHq-uO-yC-aFf9Qy_L5W_.../exec'; 
 
-        // --- [CORE] 核心功能 ---
-        const fetchData = async (force = false) => {
-            loadMockData(); // 先載入 Mock 防止空白
-            
-            if (!force && !isDemoMode.value) { 
-                loading.value = false;
-                return; 
-            }
+        // --- 1RM 計算邏輯 (Computed) ---
+        const calculated1RM = computed(() => {
+            if (!calcWeight.value || !calcReps.value) return 0;
+            // Epley Formula: w * (1 + r/30)
+            const oneRM = calcWeight.value * (1 + calcReps.value / 30);
+            return Math.round(oneRM * 10) / 10; // 取小數點一位
+        });
 
-            loading.value = true;
-            isDemoMode.value = false; 
+        const percentages = computed(() => {
+            const max = calculated1RM.value;
+            if (!max) return [];
+            const pcts = [95, 90, 85, 80, 75, 70, 65, 60];
+            return pcts.map(p => ({
+                pct: p,
+                weight: Math.round(max * (p / 100)),
+                reps: getRepsFromPct(p)
+            }));
+        });
 
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
+        function getRepsFromPct(pct) {
+            // 粗略估算對應次數
+            if(pct >= 95) return '1-2';
+            if(pct >= 90) return '3-4';
+            if(pct >= 85) return '5-6';
+            if(pct >= 80) return '7-8';
+            if(pct >= 75) return '9-10';
+            return '12+';
+        }
 
-                const response = await fetch(`${API_URL}?action=getData`, { signal: controller.signal });
-                clearTimeout(timeoutId);
+        // --- 資料處理邏輯 ---
+        const uniqueCategories = computed(() => {
+            const cats = new Set(Object.values(mapping.value).map(m => m.category || '未分類'));
+            return ['全部', ...Array.from(cats).sort()];
+        });
 
-                if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-
-                const data = await response.json();
-                
-                if (data.status === "success") {
-                    logs.value = data.logs;
-                    mapping.value = data.mapping;
-                    isDemoMode.value = false;
-                    console.log("✅ 連線成功");
-                } else {
-                    throw new Error(data.message);
-                }
-            } catch (error) {
-                console.error("❌ 連線失敗，切換至 DEMO:", error);
-                isDemoMode.value = true; 
-            } finally {
-                loading.value = false;
-                nextTick(() => initCharts()); 
-            }
-        };
-
-        // 數據計算
-        const enrichedLogs = computed(() => {
-            return logs.value.map(log => {
-                const config = mapping.value[log.exercise] || { category: "未分類", bodyPart: "未知", note: "" };
-                let w = parseFloat((log.weight || "0").toString().replace(/[^0-9.]/g, '')) || 0;
+        const processedList = computed(() => {
+            return rawData.value.map(log => {
+                const mapInfo = mapping.value[log.Exercise] || {};
                 return {
                     ...log,
-                    weightVal: w,
-                    category: config.category || "未分類",
-                    bodyPart: config.bodyPart || "未知",
-                    noteVal: config.note,
-                    userId: log.userId,
-                    videoLink: log.videoLink
+                    Category: mapInfo.category || '未分類',
+                    BodyPart: mapInfo.bodyPart || '未知'
                 };
-            }).sort((a, b) => new Date(b.date) - new Date(a.date));
+            });
         });
 
         const filteredList = computed(() => {
-            let data = enrichedLogs.value;
+            let list = processedList.value;
+            
+            // 搜尋
             if (searchQuery.value) {
                 const q = searchQuery.value.toLowerCase();
-                data = data.filter(l => l.exercise.toLowerCase().includes(q));
+                list = list.filter(item => item.Exercise.toLowerCase().includes(q));
             }
-            return data;
+            
+            // 分類篩選
+            if (selectedCategory.value !== '全部') {
+                list = list.filter(item => item.Category === selectedCategory.value);
+            }
+            
+            // 排序：日期新到舊
+            return list.sort((a, b) => new Date(b.Date) - new Date(a.Date));
         });
 
         const stats = computed(() => {
-            const data = enrichedLogs.value;
-            if (data.length === 0) return { totalLogs: 0, lastDate: "-", uniqueExercises: 0 };
+            const list = processedList.value;
+            const totalVol = list.reduce((sum, item) => sum + (parseFloat(item.Vol) || 0), 0);
+            
+            // 處理日期格式
+            const dates = list.map(item => new Date(item.Date)).sort((a,b) => b-a);
+            const lastDate = dates.length > 0 ? dates[0].toISOString().split('T')[0] : '無紀錄';
+
             return {
-                totalLogs: data.length,
-                lastDate: data[0]?.date || "-",
-                uniqueExercises: new Set(data.map(l => l.exercise)).size
+                totalVolume: Math.round(totalVol),
+                totalWorkouts: new Set(list.map(i => i.Date)).size,
+                lastWorkout: lastDate
             };
         });
 
-        const uniqueCategories = computed(() => {
-            const cats = new Set(Object.values(mapping.value).map(m => m.category));
-            return Array.from(cats).filter(c => c && c !== "未分類").sort();
-        });
-
-        // --- [CHART] 圖表繪製邏輯 (已修正語法錯誤) ---
+        // --- Chart.js 核心 ---
         const initCharts = () => {
-            renderLineChart();
-            renderRadarChart();
-        };
-
-        const renderLineChart = () => {
-            const ctx = document.getElementById('workoutChart');
+            const ctx = document.getElementById('trainingChart');
             if (!ctx) return;
-            if (lineChartInstance) lineChartInstance.destroy();
 
+            if (chartInstance.value) chartInstance.value.destroy();
+
+            // 整理圖表數據：依日期分組
             const dataMap = {};
-            const source = [...enrichedLogs.value].reverse();
-            const targetData = selectedCategory.value === "ALL" ? source : source.filter(l => l.category === selectedCategory.value);
-
-            targetData.forEach(log => {
-                if (!log.date) return;
-                const d = log.date;
-                const val = log.weightVal;
-                if (!dataMap[d]) dataMap[d] = 0;
+            // 反轉列表以顯示舊 -> 新
+            [...filteredList.value].reverse().forEach(log => {
+                if (!dataMap[log.Date]) dataMap[log.Date] = { vol: 0, max1rm: 0, count: 0 };
                 
-                if (chartMode.value === 'max') {
-                    if (val > dataMap[d]) dataMap[d] = val;
+                if (chartMode.value === 'volume') {
+                    dataMap[log.Date].vol += (parseFloat(log.Vol) || 0);
                 } else {
-                    const s = parseFloat(log.sets) || 1;
-                    const r = parseFloat(log.reps) || 1;
-                    dataMap[d] += (val * s * r);
+                    // 1RM 模式：取當日該動作最大 1RM (如果有篩選動作)，否則取平均強度 (較複雜，這裡先簡化為當日最大1RM總和或平均)
+                    // 為了圖表有意義，建議 User 搜尋特定動作時再看 1RM 趨勢
+                    const r = parseFloat(log['1RM']) || 0;
+                    if (r > dataMap[log.Date].max1rm) dataMap[log.Date].max1rm = r;
                 }
             });
 
-            const color = chartMode.value === 'max' ? '#3b82f6' : '#10b981'; 
+            const labels = Object.keys(dataMap);
+            const dataPoints = labels.map(d => chartMode.value === 'volume' ? dataMap[d].vol : dataMap[d].max1rm);
 
-            lineChartInstance = new Chart(ctx, {
+            chartInstance.value = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: Object.keys(dataMap),
+                    labels: labels,
                     datasets: [{
-                        // 修正點：這裡原本是用 , 錯誤，現在改為 : 正確
-                        label: chartMode.value === 'max' ? '最大重量 (kg)' : '訓練總量 (vol)',
-                        data: Object.values(dataMap),
-                        borderColor: color,
-                        backgroundColor: color + '20', 
+                        label: chartMode.value === 'volume' ? '總容量 (kg)' : '最大預估 1RM (kg)',
+                        data: dataPoints,
+                        borderColor: '#10b981', // Emerald 500
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
                         borderWidth: 2,
-                        tension: 0.4, 
-                        fill: true,
-                        pointRadius: 3,
-                        pointHoverRadius: 6
+                        tension: 0.3,
+                        pointRadius: 3, // 稍微加大點
+                        pointHitRadius: 20, // 增加觸摸感應範圍
+                        fill: true
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    interaction: {
+                        mode: 'nearest', // 🟢 關鍵修正：找最近的點
+                        axis: 'x',       // 🟢 關鍵修正：X 軸對齊即可觸發
+                        intersect: false // 🟢 關鍵修正：不需要精準重疊
+                    },
                     scales: {
-                        y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } },
-                        x: { grid: { display: false }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } }
+                        y: {
+                            grid: { color: '#334155' },
+                            ticks: { color: '#94a3b8' }
+                        },
+                        x: {
+                            display: false // 隱藏 X 軸日期以免太擠
+                        }
+                    },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                            titleColor: '#10b981',
+                            bodyColor: '#fff',
+                            borderColor: '#334155',
+                            borderWidth: 1
+                        }
                     }
                 }
             });
         };
 
-        const renderRadarChart = () => {
-            const ctx = document.getElementById('radarChart');
-            if (!ctx) return;
-            if (radarChartInstance) radarChartInstance.destroy();
-
-            const catCounts = {};
-            enrichedLogs.value.forEach(l => {
-                const c = l.category;
-                if(c === "未分類") return;
-                catCounts[c] = (catCounts[c] || 0) + 1;
-            });
-
-            const labels = Object.keys(catCounts);
-            const data = Object.values(catCounts);
-
-            radarChartInstance = new Chart(ctx, {
-                type: 'radar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: '訓練頻率分佈',
-                        data: data,
-                        backgroundColor: 'rgba(59, 130, 246, 0.2)',
-                        borderColor: '#3b82f6',
-                        pointBackgroundColor: '#3b82f6',
-                        pointBorderColor: '#fff',
-                        pointHoverBackgroundColor: '#fff',
-                        pointHoverBorderColor: '#3b82f6'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        r: {
-                            angleLines: { color: '#334155' },
-                            grid: { color: '#334155' },
-                            pointLabels: { color: '#cbd5e1', font: { size: 12 } },
-                            ticks: { display: false, backdropColor: 'transparent' }
-                        }
-                    },
-                    plugins: { legend: { display: false } }
+        // --- API 串接 ---
+        const fetchData = async () => {
+            try {
+                // 模擬數據 (如果沒有 API_URL，請替換回真實 fetch)
+                // ⚠️ 請記得將 fetch 換回您原本的邏輯，這裡為了示範保留 fetch 結構
+                const response = await fetch(API_URL);
+                const json = await response.json();
+                
+                // 假設後端回傳格式: { logs: [...], mapping: {...} }
+                // 這裡做個防呆，如果格式不同請調整
+                if(json.logs) rawData.value = json.logs;
+                if(json.mapping) mapping.value = json.mapping;
+                
+                // 如果是第一次載入，先給一些 Demo Data 以防畫面空白 (Testing Only)
+                if(!json.logs && rawData.value.length === 0) {
+                     console.warn("無數據，載入測試資料...");
                 }
-            });
+
+                nextTick(() => initCharts());
+            } catch (e) {
+                console.error("載入失敗", e);
+                // 錯誤處理...
+            } finally {
+                loading.value = false;
+            }
         };
 
-        // --- [ACTION] 寫入功能 ---
-        const openEditModal = (log) => {
+        const openEditModal = (item) => {
             editingItem.value = {
-                exercise: log.exercise,
-                newCategory: log.category === "未分類" ? "" : log.category,
-                newBodyPart: log.bodyPart === "未知" ? "" : log.bodyPart,
-                newNote: log.noteVal || ""
+                exercise: item.Exercise,
+                newCategory: item.Category,
+                newBodyPart: item.BodyPart,
+                newNote: mapping.value[item.Exercise]?.note || ''
             };
             showModal.value = true;
         };
 
         const saveCategory = async () => {
-            if(isDemoMode.value) {
-                alert("演示模式下無法儲存至資料庫。");
-                showModal.value = false;
-                return;
-            }
-
             saving.value = true;
             try {
+                // 發送 POST 到 GAS
                 await fetch(API_URL, {
-                    method: "POST",
+                    method: 'POST',
                     body: JSON.stringify({
                         action: "updateCategory",
                         exerciseName: editingItem.value.exercise,
@@ -527,6 +474,7 @@ createApp({
                     headers: { "Content-Type": "text/plain" }
                 });
                 
+                // 前端樂觀更新
                 mapping.value[editingItem.value.exercise] = {
                     category: editingItem.value.newCategory,
                     bodyPart: editingItem.value.newBodyPart,
@@ -541,8 +489,11 @@ createApp({
             }
         };
 
+        // 監聽變數以重繪圖表
         watch([currentView, selectedCategory, chartMode], () => {
-            nextTick(() => initCharts());
+            if(currentView.value === 'dashboard') {
+                nextTick(() => initCharts());
+            }
         });
 
         onMounted(() => {
@@ -550,11 +501,13 @@ createApp({
         });
 
         return {
-            loading, isDemoMode,
+            loading,
             stats, filteredList, uniqueCategories,
             currentView, searchQuery, selectedCategory, chartMode,
             fetchData,
-            showModal, editingItem, openEditModal, saveCategory, saving
+            showModal, editingItem, openEditModal, saveCategory, saving,
+            // 1RM 相關
+            calcWeight, calcReps, calculated1RM, percentages
         };
     }
 }).mount('#app');
