@@ -3,9 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Console v2.1.5</title>
+    <title>Alpha Strength Console v2.1.6</title>
     
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>💪</text></svg>">
+
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -39,7 +41,7 @@
         </div>
         <div class="flex gap-2">
             <span class="text-xs font-mono bg-slate-700 px-2 py-1 rounded text-slate-400">
-                {{ currentView.toUpperCase() }}
+                {{ viewName }}
             </span>
         </div>
     </nav>
@@ -54,19 +56,19 @@
             <div v-show="currentView === 'dashboard'" class="space-y-6">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-5 rounded-2xl border border-slate-700 shadow-lg">
-                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Total Volume</h2>
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">總訓練容量 (Total Vol)</h2>
                         <div class="flex items-end gap-3">
                             <span class="text-4xl font-black text-white font-mono">{{ stats.totalVolume.toLocaleString() }}</span>
                             <span class="text-emerald-500 text-sm font-bold mb-1.5">kg</span>
                         </div>
                     </div>
                     <div class="bg-slate-800 p-5 rounded-2xl border border-slate-700 shadow-lg">
-                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">Workouts</h2>
-                        <div class="text-3xl font-black text-white font-mono">{{ stats.totalWorkouts }} <span class="text-sm text-slate-500 font-normal">Sessions</span></div>
-                        <div class="text-xs text-slate-500 mt-2">Last: {{ stats.lastWorkout }}</div>
+                        <h2 class="text-slate-400 text-xs font-bold uppercase tracking-wider mb-1">訓練次數 (Sessions)</h2>
+                        <div class="text-3xl font-black text-white font-mono">{{ stats.totalWorkouts }} <span class="text-sm text-slate-500 font-normal">次</span></div>
+                        <div class="text-xs text-slate-500 mt-2">最近訓練: {{ stats.lastWorkout }}</div>
                     </div>
                     <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg flex flex-col justify-center gap-2">
-                         <input v-model="searchQuery" class="input input-sm input-bordered w-full bg-slate-900 border-slate-600 focus:border-emerald-500 text-white" placeholder="搜尋動作..." />
+                         <input v-model="searchQuery" class="input input-sm input-bordered w-full bg-slate-900 border-slate-600 focus:border-emerald-500 text-white" placeholder="🔍 搜尋動作..." />
                          <select v-model="selectedCategory" class="select select-sm select-bordered w-full bg-slate-900 text-white">
                             <option v-for="cat in uniqueCategories" :value="cat">{{ cat }}</option>
                          </select>
@@ -76,7 +78,7 @@
                 <div class="charts-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
                         <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-bold text-white flex items-center gap-2">Volume History</h3>
+                            <h3 class="font-bold text-white flex items-center gap-2">訓練趨勢 (History)</h3>
                             <div class="btn-group">
                                 <button @click="chartMode = 'volume'" :class="{'btn-active bg-slate-600 text-white': chartMode === 'volume'}" class="btn btn-xs btn-ghost text-slate-400">容量</button>
                                 <button @click="chartMode = '1rm'" :class="{'btn-active bg-slate-600 text-white': chartMode === '1rm'}" class="btn btn-xs btn-ghost text-slate-400">強度</button>
@@ -86,7 +88,7 @@
                     </div>
                     <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 shadow-lg">
                          <div class="flex justify-between items-center mb-4">
-                            <h3 class="font-bold text-white flex items-center gap-2">Body Part Focus</h3>
+                            <h3 class="font-bold text-white flex items-center gap-2">部位佔比 (Body Part)</h3>
                         </div>
                         <div class="radar-container flex justify-center"><canvas id="radarChart"></canvas></div>
                     </div>
@@ -108,15 +110,15 @@
                     </div>
                     <div class="grid grid-cols-3 gap-2 mt-3 font-mono text-sm">
                         <div class="bg-slate-900/50 p-2 rounded text-center">
-                            <div class="text-xs text-slate-500">Weight</div>
+                            <div class="text-xs text-slate-500">重量 (kg)</div>
                             <div class="font-bold text-emerald-400">{{ log.Weight }}</div>
                         </div>
                         <div class="bg-slate-900/50 p-2 rounded text-center">
-                            <div class="text-xs text-slate-500">Reps</div>
+                            <div class="text-xs text-slate-500">次數 (Reps)</div>
                             <div class="font-bold text-white">{{ log.Reps }}</div>
                         </div>
                         <div class="bg-slate-900/50 p-2 rounded text-center">
-                            <div class="text-xs text-slate-500">Sets</div>
+                            <div class="text-xs text-slate-500">組數 (Sets)</div>
                             <div class="font-bold text-white">{{ log.Sets }}</div>
                         </div>
                     </div>
@@ -200,8 +202,14 @@ createApp({
         const chartInstance = ref(null);
         const radarInstance = ref(null);
 
-        // ⚠️ API URL 請填入您的 Exec URL (不需加 ?type=json，程式會自動加)
+        // ⚠️ API URL 
         const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
+
+        const viewName = computed(() => {
+            if(currentView.value === 'dashboard') return '儀表板 (Dashboard)';
+            if(currentView.value === 'list') return '資料庫 (Database)';
+            return '工具箱 (Toolkit)';
+        });
 
         const calculated1RM = computed(() => {
             if (!calcWeight.value || !calcReps.value) return 0;
@@ -213,29 +221,34 @@ createApp({
             return ['全部', ...Array.from(cats).sort()];
         });
 
-        // 🚨 V2.1.5: 恢復使用英文欄位 (對應新的 Code.gs 回傳格式)
+        // ✅ Fix 4: 強制數據轉型 (修復圖表空白問題)
         const processedList = computed(() => {
             if (!rawData.value || !Array.isArray(rawData.value)) return [];
             return rawData.value.map(log => {
-                // 1. 動作名稱 Key (注意: 後端現在回傳 'exercise')
                 const exName = log.exercise || 'Unknown'; 
-                
                 const mapInfo = mapping.value[exName] || {};
                 
-                const w = parseFloat(log.weight) || 0;
-                const r = parseInt(log.reps) || 0;
-                const s = parseInt(log.sets) || 0;
+                // 強制將字串轉為數字 (移除 kg 等文字)
+                const cleanNum = (val) => {
+                    if (typeof val === 'number') return val;
+                    if (!val) return 0;
+                    return parseFloat(String(val).replace(/[^\d.]/g, '')) || 0;
+                };
+
+                const w = cleanNum(log.weight);
+                const r = cleanNum(log.reps);
+                const s = cleanNum(log.sets);
                 
-                let vol = w * r * s; // 前端自動計算容量
+                let vol = w * r * s; // 自動計算
 
                 return {
-                    Date: log.date || '-', // 後端回傳 date
+                    Date: log.date || '-', 
                     Exercise: exName,        
                     Weight: w,
                     Sets: s,
                     Reps: r,
                     Vol: vol,
-                    '1RM': parseFloat(log.oneRm) || 0, // 後端回傳 oneRm
+                    '1RM': cleanNum(log.oneRm),
                     Video_Link: log.videoLink || '',
                     
                     Category: mapInfo.category || '未分類',
@@ -279,12 +292,16 @@ createApp({
             if (radarInstance.value) radarInstance.value.destroy();
             if (!ctxLine || !ctxRadar || filteredList.value.length === 0) return;
 
+            // Line Chart
             const dataMap = {};
             [...filteredList.value].reverse().forEach(log => {
                 const dStr = log.Date; 
                 if (!dataMap[dStr]) dataMap[dStr] = { vol: 0, max1rm: 0 };
-                if (chartMode.value === 'volume') dataMap[dStr].vol += log.Vol;
-                else {
+                
+                // ✅ Fix: 確保累加時不會有 NaN
+                if (chartMode.value === 'volume') {
+                    if(!isNaN(log.Vol)) dataMap[dStr].vol += log.Vol;
+                } else {
                     const r = log['1RM'];
                     if (r > dataMap[dStr].max1rm) dataMap[dStr].max1rm = r;
                 }
@@ -294,23 +311,25 @@ createApp({
             
             chartInstance.value = new Chart(ctxLine, { 
                  type: 'line',
-                 data: { labels: labels, datasets: [{ label: 'Value', data: vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }] },
+                 data: { labels: labels, datasets: [{ label: '數值', data: vals, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', fill: true, tension: 0.3 }] },
                  options: { responsive: true, maintainAspectRatio: false, interaction: { mode: 'nearest', axis: 'x', intersect: false }, scales: { y: { grid: { color: '#334155' }, ticks: { color: '#94a3b8' } }, x: { display: false } }, plugins: { legend: { display: false } } }
             });
 
+            // Radar Chart
             const partStats = {};
             processedList.value.forEach(log => {
                 const parts = (log.BodyPart || '其他').split('/');
                 parts.forEach(p => {
                     const k = p.trim();
-                    partStats[k] = (partStats[k] || 0) + log.Vol;
+                    if(!partStats[k]) partStats[k] = 0;
+                    if(!isNaN(log.Vol)) partStats[k] += log.Vol;
                 });
             });
             const sortedParts = Object.entries(partStats).sort((a,b)=>b[1]-a[1]).slice(0,8);
             
             radarInstance.value = new Chart(ctxRadar, { 
                 type: 'radar',
-                data: { labels: sortedParts.map(x=>x[0]), datasets: [{ label: 'Volume', data: sortedParts.map(x=>x[1]), backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: '#a855f7' }] },
+                data: { labels: sortedParts.map(x=>x[0]), datasets: [{ label: '總容量', data: sortedParts.map(x=>x[1]), backgroundColor: 'rgba(168, 85, 247, 0.2)', borderColor: '#a855f7' }] },
                 options: { responsive: true, maintainAspectRatio: false, plugins:{legend:{display:false}}, scales:{r:{ticks:{display:false}, angleLines: { color: '#334155' }, grid: { color: '#334155' }, pointLabels: { color: '#cbd5e1', font: { size: 12 } } }} }
             });
         };
@@ -318,11 +337,9 @@ createApp({
         const fetchData = async () => {
             loading.value = true;
             try {
-                if(API_URL.includes('...')) throw new Error("API_URL 未填入。請修正 index.html 中的 API_URL。");
+                if(API_URL.includes('...')) throw new Error("API_URL 未填入。");
                 
-                // 🚨 關鍵改變：加上 ?type=json 參數，告訴後端給我 JSON 數據
                 const res = await fetch(API_URL + "?type=json");
-                
                 if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const json = await res.json();
                 
@@ -379,7 +396,8 @@ createApp({
         onMounted(() => fetchData());
 
         return {
-            loading, stats, filteredList, uniqueCategories,
+            loading, viewName,
+            stats, filteredList, uniqueCategories,
             currentView, searchQuery, selectedCategory, chartMode,
             fetchData, showModal, editingItem, openEditModal, saveCategory, saving,
             calcWeight, calcReps, calculated1RM 
