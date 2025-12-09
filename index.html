@@ -260,7 +260,7 @@ createApp({
     setup() {
         // --- [CONFIG] 設定區 ---
         // 🔴 請務必將下方的 URL 換成您最新部署的 GAS Web App 網址 🔴
-        const API_URL = "https://script.google.com/macros/s/AKfycbz0ILttu19iGx4jU4R3HvE-2tlOyEIzp0vRkdeSa_asKwRrJqmpTZEWop3ZNnLnvSuy4A/exec"; 
+        const API_URL = "https://script.google.com/macros/s/AKfycbwGOEZTznGMZvi49v8MHN2KFEHDRGv7ZqzLD06LZza1M0wKWfHtTMbrAA2VnYav3tbj5g/exec"; 
 
         // --- [STATE] 狀態變數 ---
         const loading = ref(true);
@@ -425,7 +425,7 @@ createApp({
                 data: {
                     labels: Object.keys(dataMap),
                     datasets: [{
-                        // 修正點：這裡原本是用 , 錯誤，現在改為 : 正確  
+                        // 修正點：這裡原本是用 , 錯誤，現在改為 : 正確
                         label: chartMode.value === 'max' ? '最大重量 (kg)' : '訓練總量 (vol)',
                         data: Object.values(dataMap),
                         borderColor: color,
