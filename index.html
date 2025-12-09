@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Alpha Strength Lab v2.1.4 | Director's Console</title>
+    <title>Alpha Strength Console v2.1.5</title>
     
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -39,7 +39,7 @@
         </div>
         <div class="flex gap-2">
             <span class="text-xs font-mono bg-slate-700 px-2 py-1 rounded text-slate-400">
-                {{ currentView === 'dashboard' ? 'DASHBOARD' : (currentView === 'tools' ? 'TOOLKIT' : 'DATABASE') }}
+                {{ currentView.toUpperCase() }}
             </span>
         </div>
     </nav>
@@ -95,7 +95,7 @@
 
             <div v-show="currentView === 'list'" class="space-y-4 max-w-4xl mx-auto">
                 <div v-if="filteredList.length === 0" class="text-center p-10 text-slate-500">
-                    <p>沒有符合的資料 (請檢查搜尋條件)</p>
+                    <p>沒有符合的資料</p>
                 </div>
                 <div v-for="(log, index) in filteredList" :key="index" class="group bg-slate-800 p-4 rounded-xl border border-slate-700 hover:border-emerald-500/50 transition-all duration-300">
                     <div class="flex justify-between items-start mb-2">
@@ -120,7 +120,7 @@
                             <div class="font-bold text-white">{{ log.Sets }}</div>
                         </div>
                     </div>
-                    <div v-if="log.Video_Link" class="mt-3 pt-3 border-t border-slate-700/50">
+                    <div v-if="log.Video_Link && log.Video_Link.includes('http')" class="mt-3 pt-3 border-t border-slate-700/50">
                         <a :href="log.Video_Link" target="_blank" class="btn btn-xs btn-outline btn-success w-full gap-2">▶ 觀看影片</a>
                     </div>
                 </div>
@@ -200,7 +200,7 @@ createApp({
         const chartInstance = ref(null);
         const radarInstance = ref(null);
 
-        // ⚠️ 請填入您的 GAS Exec URL (請確認網址正確)
+        // ⚠️ API URL 請填入您的 Exec URL (不需加 ?type=json，程式會自動加)
         const API_URL = 'https://script.google.com/macros/s/AKfycbwRqt0nUnVnT5CCAhihambbMKMVVa57nJEul5Sjmvjigo-l_JkHpMlNLY5hPl578BdG7Q/exec'; 
 
         const calculated1RM = computed(() => {
@@ -213,36 +213,35 @@ createApp({
             return ['全部', ...Array.from(cats).sort()];
         });
 
-        // 🚨 核心修復：強制對應中文欄位 🚨
+        // 🚨 V2.1.5: 恢復使用英文欄位 (對應新的 Code.gs 回傳格式)
         const processedList = computed(() => {
             if (!rawData.value || !Array.isArray(rawData.value)) return [];
             return rawData.value.map(log => {
-                const exName = log['動作名稱'] || 'Unknown'; 
+                // 1. 動作名稱 Key (注意: 後端現在回傳 'exercise')
+                const exName = log.exercise || 'Unknown'; 
+                
                 const mapInfo = mapping.value[exName] || {};
                 
-                // 數據清洗與欄位對應
-                const w = parseFloat(log['重量 (kg)']) || 0;
-                const r = parseInt(log['次數 (Reps)']) || 0;
-                const s = parseInt(log['組數 (Sets)']) || 0;
+                const w = parseFloat(log.weight) || 0;
+                const r = parseInt(log.reps) || 0;
+                const s = parseInt(log.sets) || 0;
                 
-                // 自動計算容量 (如果 Excel 裡沒有 Vol 欄位)
-                let vol = parseFloat(log.Vol);
-                if (isNaN(vol)) vol = w * r * s; // 自動補算
+                let vol = w * r * s; // 前端自動計算容量
 
                 return {
-                    Date: log['日期'] || '-', 
+                    Date: log.date || '-', // 後端回傳 date
                     Exercise: exName,        
                     Weight: w,
                     Sets: s,
                     Reps: r,
                     Vol: vol,
-                    '1RM': parseFloat(log['預估1RM']) || 0,
-                    Video_Link: log['影片連結'] || '',
+                    '1RM': parseFloat(log.oneRm) || 0, // 後端回傳 oneRm
+                    Video_Link: log.videoLink || '',
                     
                     Category: mapInfo.category || '未分類',
                     BodyPart: mapInfo.bodyPart || '未知'
                 };
-            }).filter(log => log.Exercise !== 'Unknown' && log.Exercise !== '動作名稱');
+            }).filter(log => log.Exercise !== 'Unknown');
         });
 
         const filteredList = computed(() => {
@@ -265,7 +264,7 @@ createApp({
         const stats = computed(() => {
             const list = processedList.value;
             const totalVol = list.reduce((sum, item) => sum + item.Vol, 0); 
-            const uniqueDates = new Set(list.map(i => i.Date).filter(d => d && d !== '日期'));
+            const uniqueDates = new Set(list.map(i => i.Date));
             return {
                 totalVolume: Math.round(totalVol),
                 totalWorkouts: uniqueDates.size,
@@ -320,7 +319,10 @@ createApp({
             loading.value = true;
             try {
                 if(API_URL.includes('...')) throw new Error("API_URL 未填入。請修正 index.html 中的 API_URL。");
-                const res = await fetch(API_URL);
+                
+                // 🚨 關鍵改變：加上 ?type=json 參數，告訴後端給我 JSON 數據
+                const res = await fetch(API_URL + "?type=json");
+                
                 if(!res.ok) throw new Error(`HTTP Error: ${res.status}`);
                 const json = await res.json();
                 
